@@ -373,25 +373,35 @@ async function initApp(){
 // ---------- POMPES ----------
 function renderPumps(){
   const box = document.getElementById('pumpCards');
-  box.innerHTML = state.pumps.map(p => `
-    <div class="pump-card">
-      <div class="phead">
-        <select onchange="updatePump('${p.id}','fuel',this.value)">
-          ${FUEL_TYPES.map(f => `<option value="${f.key}" ${f.key===p.fuel?'selected':''}>${f.label}</option>`).join('')}
-        </select>
-        <input class="plabel" value="${p.label}" oninput="updatePump('${p.id}','label',this.value)">
-        <button class="del" onclick="removePump('${p.id}')">✕</button>
+  box.innerHTML = FUEL_TYPES.map(f => {
+    const pumpsForFuel = state.pumps.filter(p => p.fuel === f.key);
+    return `
+    <div class="fuel-group">
+      <div class="fuel-group-head">
+        <span class="fdot" style="background:${f.color}"></span>
+        <span class="fname">${f.label}</span>
+        <button class="addbtn" onclick="addPump('${f.key}')">+ Ajouter une face</button>
       </div>
-      <div class="pump-fields">
-        <div class="pfield"><label>Index ouverture (L)</label>
-          <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ouv}" oninput="updatePump('${p.id}','ouv',this.value)"></div>
-        <div class="pfield"><label>Index clôture (L)</label>
-          <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ferm}" oninput="updatePump('${p.id}','ferm',this.value)"></div>
-      </div>
-    </div>`).join('') || '<div class="empty">Aucune pompe — ajoutez-en une</div>';
+      ${pumpsForFuel.map(p => `
+        <div class="pump-card">
+          <div class="phead">
+            <input class="plabel" style="flex:1" value="${p.label}" oninput="updatePump('${p.id}','label',this.value)">
+            <button class="del" onclick="removePump('${p.id}')">✕</button>
+          </div>
+          <div class="pump-fields">
+            <div class="pfield"><label>Index ouverture (L)</label>
+              <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ouv}" oninput="updatePump('${p.id}','ouv',this.value)"></div>
+            <div class="pfield"><label>Index clôture (L)</label>
+              <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ferm}" oninput="updatePump('${p.id}','ferm',this.value)"></div>
+          </div>
+        </div>`).join('') || '<div class="empty" style="padding:10px 0">Aucune face — ajoutez-en une</div>'}
+    </div>`;
+  }).join('');
 }
-function addPump(){
-  state.pumps.push({ id: uid(), fuel:'super', label:'Super ' + (state.pumps.filter(p=>p.fuel==='super').length+1), ouv:'', ferm:'' });
+function addPump(fuelKey){
+  const count = state.pumps.filter(p => p.fuel === fuelKey).length + 1;
+  const meta = fuelMeta(fuelKey);
+  state.pumps.push({ id: uid(), fuel: fuelKey, label: meta.label + ' ' + count, ouv:'', ferm:'' });
   renderPumps();
 }
 function removePump(id){ state.pumps = state.pumps.filter(p => p.id !== id); renderPumps(); }

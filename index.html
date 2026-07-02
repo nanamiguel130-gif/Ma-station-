@@ -214,7 +214,8 @@
       <div class="vtype-grid" id="vtypeGrid"></div>
       <div id="vExtraFields"></div>
       <input class="note-input" id="vNote" placeholder="Note (facultatif, ex: nom du client)">
-      <button class="save-btn ghost" onclick="addVersement()">+ Ajouter ce versement</button>
+      <button class="save-btn ghost" id="addVersementBtn" onclick="addVersement()">+ Ajouter ce versement</button>
+      <button class="save-btn ghost hidden" id="cancelEditBtn" onclick="cancelEditVersement()" style="color:var(--bad);border-color:rgba(229,72,77,.35)">✕ Annuler la modification</button>
     </div>
     <div class="panel">
       <h2>Versements du jour <span class="badge mono" id="vCount"></span></h2>
@@ -248,6 +249,7 @@
     <div class="panel"><h2>Versements par moyen</h2><div id="sumPay"></div></div>
     <div class="panel"><h2>Récapitulatif</h2><div id="sumFinal"></div></div>
     <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
+    <button class="save-btn ghost" onclick="shareWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,.35)">📲 Partager via WhatsApp</button>
     <button class="save-btn ghost" id="backToVersementBtn" onclick="showStage('service')">← Ajouter un versement oublié</button>
     <button class="save-btn ghost" id="backToClotureBtn" onclick="showStage('cloture')">← Corriger les index</button>
     <div class="status-msg" id="statusMsg"></div>
@@ -381,6 +383,7 @@ function defaultState(){
 
 let state = defaultState();
 let currentVType = 'especes';
+let currentEditId = null;
 let currentStage = 'ouverture';
 let historyCache = [];
 
@@ -550,12 +553,43 @@ async function addVersement(){
     if(montant <= 0){ alert('Indiquez un montant.'); return; }
   }
   const note = document.getElementById('vNote').value.trim();
-  state.versements.push({ id: uid(), type: currentVType, montant, detail, note, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
-  document.getElementById('vNote').value = '';
-  renderExtraFields(); renderVList();
+  if(currentEditId){
+    const v = state.versements.find(v => v.id === currentEditId);
+    if(v){ v.type = currentVType; v.montant = montant; v.detail = detail; v.note = note; }
+    cancelEditVersement();
+  } else {
+    state.versements.push({ id: uid(), type: currentVType, montant, detail, note, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
+    document.getElementById('vNote').value = '';
+    renderExtraFields();
+  }
+  renderVList();
   await persist();
 }
 async function removeVersement(id){ state.versements = state.versements.filter(v => v.id !== id); renderVList(); await persist(); }
+function editVersement(id){
+  const v = state.versements.find(v => v.id === id);
+  if(!v) return;
+  currentEditId = id;
+  currentVType = v.type;
+  renderVTypeGrid();
+  renderExtraFields();
+  if(v.type === 'bons' && v.detail){
+    Object.entries(v.detail).forEach(([d,c]) => { const el = document.getElementById('bon-'+d); if(el) el.value = c; });
+    recalcBons();
+  } else {
+    const el = document.getElementById('vMontant'); if(el) el.value = v.montant;
+  }
+  document.getElementById('vNote').value = v.note || '';
+  document.getElementById('addVersementBtn').textContent = '✓ Enregistrer la modification';
+  document.getElementById('cancelEditBtn').classList.remove('hidden');
+}
+function cancelEditVersement(){
+  currentEditId = null;
+  document.getElementById('addVersementBtn').textContent = '+ Ajouter ce versement';
+  document.getElementById('cancelEditBtn').classList.add('hidden');
+  document.getElementById('vNote').value = '';
+  renderExtraFields();
+}
 function renderVList(){
   const list = state.versements.slice().reverse();
   document.getElementById('vCount').textContent = state.versements.length ? `(${state.versements.length})` : '';
@@ -569,6 +603,7 @@ function renderVList(){
       <span class="ic">${meta.ic}</span>
       <div class="info"><div class="t">${meta.label}</div><div class="s">${sub}</div></div>
       <span class="amt">${fmt(v.montant)}</span>
+      <button class="del" onclick="editVersement('${v.id}')" style="color:var(--amber)">✎</button>
       <button class="del" onclick="removeVersement('${v.id}')">✕</button>
     </div>`;
   }).join('') || '<div class="empty">Aucun versement enregistré</div>';
@@ -665,6 +700,26 @@ function computeAndShowSituation(readOnly){
   document.getElementById('backToVersementBtn').classList.toggle('hidden', !!readOnly);
   document.getElementById('backToClotureBtn').classList.toggle('hidden', !!readOnly);
   showStage('situation');
+
+  window._lastSituation = { fuelSales, gazSales, totalFuel, totalGaz, totalCA, pay, totalEncaisse, totalCredit, totalRecu, ecart };
+}
+
+function shareWhatsApp(){
+  const s = window._lastSituation;
+  if(!s) return;
+  const dateStr = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  let msg = `*Situation du ${dateStr}*\n\n`;
+  msg += `*Carburants*\n`;
+  s.fuelSales.forEach(f => { if(f.qty > 0) msg += `${f.label}: ${f.qty.toFixed(1)} L — ${fmt(f.montant)} F\n`; });
+  msg += `\n*Gaz*\n`;
+  s.gazSales.forEach(g => { if(g.recharges > 0 || g.consignes > 0) msg += `${g.label}: ${g.recharges} rech. / ${g.consignes} cons. — ${fmt(g.montant)} F\n`; });
+  msg += `\n*Versements*\n`;
+  VTYPES.forEach(t => { if(s.pay[t.key] > 0) msg += `${t.label}: ${fmt(s.pay[t.key])} F\n`; });
+  msg += `\n*Vendu théorique:* ${fmt(s.totalCA)} F\n`;
+  msg += `*Reçu total:* ${fmt(s.totalRecu)} F\n`;
+  msg += `*Écart:* ${s.ecart > 0 ? '+' : ''}${fmt(s.ecart)} F ${s.ecart < 0 ? '(manquant)' : (s.ecart > 0 ? '(excédent)' : '(caisse juste)')}`;
+  const url = 'https://wa.me/?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
 }
 
 async function closeShift(){
@@ -776,4 +831,4 @@ function openHistoryDetail(dateStr){
 }
 </script>
 </body>
-</html>
+  </html>

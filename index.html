@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Ma Station — Suivi de service</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #14171A; --surface: #1E2226; --surface-2: #262B30; --line: #343B41;
+    --cream: #F2EFE9; --muted: #8C949C; --amber: #FFB000; --amber-dim: #8a6000;
+    --super: #E8602C; --gazole: #3FA56A; --petrole: #5C8AC9;
+    --bad: #E5484D; --good: #3FA56A; --radius: 14px;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ background: var(--bg); color: var(--cream); font-family:'Manrope',sans-serif; min-height:100vh; padding-bottom:88px; -webkit-tap-highlight-color:transparent; }
+  .mono{ font-family:'JetBrains Mono',monospace; font-variant-numeric: tabular-nums; }
+  .hidden{ display:none !important; }
+
+  /* ----- AUTH SCREEN ----- */
+  #authScreen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .auth-box{ width:100%; max-width:360px; }
+  .auth-logo{ text-align:center; font-size:40px; margin-bottom:6px; }
+  .auth-title{ text-align:center; font-size:20px; font-weight:800; margin-bottom:4px; }
+  .auth-sub{ text-align:center; font-size:13px; color:var(--muted); margin-bottom:24px; }
+  .auth-field{ margin-bottom:12px; }
+  .auth-field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
+  .auth-field input{ width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px; color:var(--cream); font-size:14px; }
+  .auth-field input:focus{ outline:none; border-color:var(--amber-dim); }
+  .auth-btn{ width:100%; padding:13px; border-radius:10px; border:none; background:var(--amber); color:#1A1300; font-weight:800; font-size:14px; cursor:pointer; margin-top:6px; }
+  .auth-switch{ text-align:center; margin-top:16px; font-size:13px; color:var(--muted); }
+  .auth-switch a{ color:var(--amber); cursor:pointer; text-decoration:none; font-weight:600; }
+  .auth-error{ background:rgba(229,72,77,.1); border:1px solid rgba(229,72,77,.35); color:var(--bad); font-size:12.5px; padding:9px 11px; border-radius:8px; margin-bottom:12px; }
+  .auth-loading{ text-align:center; color:var(--muted); font-size:13px; padding:40px; }
+
+  /* ----- APP ----- */
+  header.top{ position:sticky; top:0; z-index:10; background:linear-gradient(180deg,#14171A 80%,rgba(20,23,26,0)); padding:18px 20px 10px; }
+  .brand{ display:flex; align-items:baseline; justify-content:space-between; }
+  .brand h1{ font-size:17px; margin:0; font-weight:800; }
+  .brand .user-chip{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--amber); background:rgba(255,176,0,.1); border:1px solid var(--amber-dim); padding:3px 8px; border-radius:6px; cursor:pointer; }
+  .date-line{ color:var(--muted); font-size:12.5px; margin-top:4px; }
+
+  main{ padding:6px 16px 24px; max-width:560px; margin:0 auto; }
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px; }
+  .panel h2{ font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin:0 0 12px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+  .panel h2 small{ text-transform:none; letter-spacing:0; opacity:.8; font-weight:500; }
+  .addbtn{ background:rgba(255,176,0,.1); color:var(--amber); border:1px solid var(--amber-dim); border-radius:8px; padding:5px 10px; font-size:11.5px; font-weight:700; cursor:pointer; }
+
+  .pump-card{ background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; }
+  .pump-card .phead{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .pump-card select{ background:#0E1012; border:1px solid var(--line); border-radius:7px; color:var(--cream); padding:6px 8px; font-size:13px; font-weight:600; }
+  .pump-card .plabel{ flex:1; background:#0E1012; border:1px solid var(--line); border-radius:7px; color:var(--cream); padding:6px 8px; font-size:13px; font-weight:600; }
+  .pump-card .del{ background:none; border:none; color:var(--bad); font-size:16px; cursor:pointer; padding:4px; }
+  .pump-fields{ display:flex; gap:8px; }
+  .pfield{ flex:1; }
+  .pfield label{ display:block; font-size:10.5px; color:var(--muted); margin-bottom:3px; }
+  .led-input{ background:#0E1012; border:1px solid var(--line); border-radius:8px; padding:9px 10px; color:var(--amber); font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; width:100%; text-align:right; }
+  .led-input::placeholder{ color:#4a3a10; }
+  .led-input:focus{ outline:none; border-color:var(--amber-dim); }
+
+  .price-row{ display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); }
+  .price-row:last-child{ border-bottom:none; }
+  .price-row .dot{ width:10px; height:10px; border-radius:50%; }
+  .price-row .lbl{ flex:1; font-size:13px; font-weight:600; }
+  .price-input{ width:90px; background:var(--surface-2); border:1px solid var(--line); border-radius:7px; padding:7px; color:var(--cream); font-family:'JetBrains Mono',monospace; font-size:13px; text-align:center; }
+
+  .gaz-card{ background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; }
+  .gaz-card .gtitle{ font-weight:800; font-size:14px; margin-bottom:8px; display:flex; justify-content:space-between; }
+  .gaz-card .badge{ font-size:10.5px; color:var(--muted); font-weight:500; font-family:'JetBrains Mono',monospace; }
+  .stock-row{ display:flex; gap:8px; margin-bottom:8px; }
+  .stock-row .field{ flex:1; }
+  .stock-row label{ display:block; font-size:10.5px; color:var(--muted); margin-bottom:3px; }
+  .stock-row input{ width:100%; background:#0E1012; border:1px solid var(--line); border-radius:7px; padding:7px 8px; color:var(--cream); font-family:'JetBrains Mono',monospace; font-size:14px; text-align:center; }
+  .counter-row{ display:flex; align-items:center; gap:10px; padding-top:6px; border-top:1px dashed var(--line); margin-top:4px; }
+  .counter-row .ctitle{ flex:1; font-size:12.5px; }
+  .counter-row .ctitle small{ display:block; color:var(--muted); font-size:10.5px; }
+  .counter{ display:flex; align-items:center; gap:8px; }
+  .counter button{ width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--amber); font-size:16px; font-weight:700; cursor:pointer; }
+  .counter .val{ min-width:22px; text-align:center; font-weight:700; }
+
+  .vtype-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:12px; }
+  .vtype-btn{ background:var(--surface-2); border:1px solid var(--line); border-radius:9px; padding:9px 2px; text-align:center; cursor:pointer; }
+  .vtype-btn .ic{ font-size:17px; display:block; }
+  .vtype-btn .lb{ font-size:9.5px; color:var(--muted); margin-top:3px; display:block; font-weight:600; }
+  .vtype-btn.active{ border-color:var(--amber); background:rgba(255,176,0,.1); }
+  .vtype-btn.active .lb{ color:var(--amber); }
+
+  .bons-grid{ display:flex; gap:8px; margin-bottom:10px; }
+  .bons-field{ flex:1; text-align:center; }
+  .bons-field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:4px; }
+  .bons-field input{ width:100%; background:#0E1012; border:1px solid var(--line); border-radius:7px; padding:7px; color:var(--cream); font-family:'JetBrains Mono',monospace; text-align:center; font-size:14px; }
+
+  .note-input{ width:100%; background:#0E1012; border:1px solid var(--line); border-radius:8px; padding:9px 10px; color:var(--cream); font-size:13px; margin-bottom:10px; }
+  .note-input::placeholder{ color:var(--muted); }
+
+  .list-item{ display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .list-item:last-child{ border-bottom:none; }
+  .list-item .ic{ font-size:17px; width:24px; text-align:center; }
+  .list-item .info{ flex:1; min-width:0; }
+  .list-item .info .t{ font-size:13px; font-weight:700; }
+  .list-item .info .s{ font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .list-item .amt{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; }
+  .list-item .del{ background:none; border:none; color:var(--muted); font-size:15px; cursor:pointer; padding:2px 4px; }
+  .credit .amt{ color: var(--petrole); }
+
+  .tabs{ position:fixed; bottom:0; left:0; right:0; z-index:20; background:var(--surface); border-top:1px solid var(--line); display:flex; padding:6px 6px calc(6px + env(safe-area-inset-bottom)); }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none; color:var(--muted); font-family:'Manrope',sans-serif; font-size:10.5px; font-weight:600; padding:7px 2px; border-radius:10px; cursor:pointer; }
+  .tab.active{ color:var(--amber); background:rgba(255,176,0,.08); }
+  .tab .ic{ font-size:18px; line-height:1; }
+
+  .view{ display:none; }
+  .view.active{ display:block; animation:fade .18s ease; }
+  @keyframes fade{ from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:translateY(0)} }
+
+  .save-btn{ width:100%; padding:13px; border-radius:10px; border:none; background:var(--amber); color:#1A1300; font-weight:800; font-size:14px; margin-top:4px; cursor:pointer; }
+  .save-btn.ghost{ background:transparent; border:1px solid var(--line); color:var(--cream); }
+  .save-btn.secondary{ background:var(--surface-2); border:1px solid var(--amber-dim); color:var(--amber); }
+
+  .summary-line{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+  .summary-line:last-child{ border-bottom:none; }
+  .summary-line .v{ font-family:'JetBrains Mono',monospace; font-weight:700; }
+  .summary-line.total{ font-size:15px; padding-top:12px; }
+  .summary-line.total .v{ color:var(--amber); font-size:16px; }
+
+  .situation-box{ text-align:center; padding:20px 10px; border-radius:var(--radius); border:1px solid var(--line); margin-bottom:14px; }
+  .situation-box .tag{ font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); font-weight:700; }
+  .situation-box .amount{ font-family:'JetBrains Mono',monospace; font-size:32px; font-weight:800; margin:6px 0 2px; }
+  .situation-box.ok{ background:rgba(63,165,106,.08); border-color:rgba(63,165,106,.35); }
+  .situation-box.ok .amount{ color:var(--good); }
+  .situation-box.bad{ background:rgba(229,72,77,.08); border-color:rgba(229,72,77,.35); }
+  .situation-box.bad .amount{ color:var(--bad); }
+  .situation-box .hint{ font-size:12px; color:var(--muted); }
+
+  .status-msg{ text-align:center; font-size:11.5px; color:var(--muted); margin-top:8px; min-height:14px; }
+  .empty{ text-align:center; color:var(--muted); font-size:13px; padding:24px 10px; }
+</style>
+</head>
+<body>
+
+<!-- ============== ÉCRAN DE CONNEXION ============== -->
+<div id="authScreen">
+  <div class="auth-box">
+    <div class="auth-logo">⛽</div>
+    <div class="auth-title">Ma Station</div>
+    <div class="auth-sub" id="authSub">Connectez-vous pour accéder à votre service</div>
+    <div id="authError" class="auth-error hidden"></div>
+
+    <div id="nameField" class="auth-field hidden">
+      <label>Votre nom</label>
+      <input type="text" id="authName" placeholder="Ex: Jean Mballa">
+    </div>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="authEmail" placeholder="vous@exemple.com">
+    </div>
+    <div class="auth-field">
+      <label>Mot de passe</label>
+      <input type="password" id="authPassword" placeholder="••••••••">
+    </div>
+    <button class="auth-btn" id="authSubmitBtn" onclick="handleAuthSubmit()">Se connecter</button>
+    <div class="auth-switch">
+      <span id="authSwitchText">Pas encore de compte ?</span>
+      <a onclick="toggleAuthMode()" id="authSwitchLink">Créer un compte</a>
+    </div>
+  </div>
+</div>
+
+<!-- ============== APP (visible après connexion) ============== -->
+<div id="appRoot" class="hidden">
+
+<header class="top">
+  <div class="brand">
+    <h1>⛽ Ma Station</h1>
+    <span class="user-chip mono" id="userChip" onclick="signOut()">⎋ Déconnexion</span>
+  </div>
+  <div class="date-line" id="dateLine"></div>
+</header>
+
+<main>
+  <section class="view active" id="view-pompes">
+    <div class="panel">
+      <h2>Mes pompes <button class="addbtn" onclick="addPump()">+ Ajouter</button></h2>
+      <div id="pumpCards"></div>
+    </div>
+    <div class="panel">
+      <h2>Prix au litre</h2>
+      <div id="priceFuels"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-gaz">
+    <div class="panel">
+      <h2>Bouteilles de gaz <small>— stock & mouvements du jour</small></h2>
+      <div id="gazCards"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-versements">
+    <div class="panel">
+      <h2>Nouveau versement</h2>
+      <div class="vtype-grid" id="vtypeGrid"></div>
+      <div id="vExtraFields"></div>
+      <input class="note-input" id="vNote" placeholder="Note (facultatif, ex: nom du client)">
+      <button class="save-btn secondary" onclick="addVersement()">+ Ajouter ce versement</button>
+    </div>
+    <div class="panel">
+      <h2>Versements du jour <span class="badge mono" id="vCount"></span></h2>
+      <div id="vList"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-situation">
+    <div id="situationBox"></div>
+    <div class="panel"><h2>Ventes carburants</h2><div id="sumFuels"></div></div>
+    <div class="panel"><h2>Ventes gaz</h2><div id="sumGaz"></div></div>
+    <div class="panel"><h2>Versements par moyen</h2><div id="sumPay"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="sumFinal"></div></div>
+    <button class="save-btn" onclick="saveShift()">☁️ Enregistrer en ligne</button>
+    <button class="save-btn ghost" onclick="newShift()">↺ Nouveau service (réinitialiser)</button>
+    <div class="status-msg" id="statusMsg"></div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button class="tab active" data-view="pompes" onclick="showView('pompes')"><span class="ic">📟</span>Pompes</button>
+  <button class="tab" data-view="gaz" onclick="showView('gaz')"><span class="ic">🛢️</span>Gaz</button>
+  <button class="tab" data-view="versements" onclick="showView('versements')"><span class="ic">💵</span>Versements</button>
+  <button class="tab" data-view="situation" onclick="showView('situation')"><span class="ic">📊</span>Situation</button>
+</nav>
+
+</div>
+
+<script>
+// ============================================================
+// CONFIGURATION SUPABASE — à remplir après avoir créé votre projet
+// Supabase → Project Settings → API → "Project URL" et "anon public key"
+// ============================================================
+const SUPABASE_URL = "VOTRE_PROJECT_URL_ICI";
+const SUPABASE_ANON_KEY = "VOTRE_ANON_KEY_ICI";
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
+let authMode = 'signin'; // 'signin' | 'signup'
+
+// ---------- AUTH UI ----------
+function toggleAuthMode(){
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  document.getElementById('nameField').classList.toggle('hidden', authMode === 'signin');
+  document.getElementById('authSub').textContent = authMode === 'signin'
+    ? 'Connectez-vous pour accéder à votre service'
+    : 'Créez votre compte pompiste';
+  document.getElementById('authSubmitBtn').textContent = authMode === 'signin' ? 'Se connecter' : 'Créer mon compte';
+  document.getElementById('authSwitchText').textContent = authMode === 'signin' ? 'Pas encore de compte ?' : 'Déjà un compte ?';
+  document.getElementById('authSwitchLink').textContent = authMode === 'signin' ? 'Créer un compte' : 'Se connecter';
+  document.getElementById('authError').classList.add('hidden');
+}
+
+async function handleAuthSubmit(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errBox = document.getElementById('authError');
+  errBox.classList.add('hidden');
+
+  if(!email || !password){ showAuthError('Entrez votre email et votre mot de passe.'); return; }
+
+  try{
+    if(authMode === 'signup'){
+      const full_name = document.getElementById('authName').value.trim();
+      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name } } });
+      if(error) throw error;
+      if(data.user && !data.session){
+        showAuthError("Compte créé ! Vérifiez votre email pour confirmer, puis connectez-vous.");
+        return;
+      }
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if(error) throw error;
+    }
+  }catch(e){
+    showAuthError(translateAuthError(e.message));
+  }
+}
+function showAuthError(msg){
+  const box = document.getElementById('authError');
+  box.textContent = msg;
+  box.classList.remove('hidden');
+}
+function translateAuthError(msg){
+  if(msg.includes('Invalid login credentials')) return 'Email ou mot de passe incorrect.';
+  if(msg.includes('already registered')) return 'Cet email a déjà un compte — connectez-vous plutôt.';
+  if(msg.includes('Password should be')) return 'Le mot de passe doit faire au moins 6 caractères.';
+  return msg;
+}
+async function signOut(){
+  await sb.auth.signOut();
+}
+
+// React to auth state
+sb.auth.onAuthStateChange((event, session) => {
+  if(session && session.user){
+    currentUser = session.user;
+    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('appRoot').classList.remove('hidden');
+    document.getElementById('userChip').textContent = '⎋ ' + (session.user.email || 'Déconnexion');
+    initApp();
+  } else {
+    currentUser = null;
+    document.getElementById('appRoot').classList.add('hidden');
+    document.getElementById('authScreen').classList.remove('hidden');
+  }
+});
+
+// ============================================================
+// APP — logique métier (identique à la version locale, + sync Supabase)
+// ============================================================
+const FUEL_TYPES = [
+  { key:'super',   label:'Super',   color:'var(--super)',   defPrice:856 },
+  { key:'gazole',  label:'Gazole',  color:'var(--gazole)',  defPrice:844 },
+  { key:'petrole', label:'Pétrole', color:'var(--petrole)', defPrice:366 },
+];
+const BOTTLES = [
+  { key:'b6',  label:'6 kg',  defRecharge:3205,  defConsigne:13605 },
+  { key:'b12', label:'12 kg', defRecharge:6680,  defConsigne:24340 },
+  { key:'b35', label:'35 kg', defRecharge:18000, defConsigne:45000 },
+];
+const VTYPES = [
+  { key:'especes', label:'Espèces', ic:'💶' },
+  { key:'orange',  label:'Orange',  ic:'🟠' },
+  { key:'tomcard', label:'Tom Card',ic:'💳' },
+  { key:'bons',    label:'Bons',    ic:'🧾' },
+  { key:'credit',  label:'Crédit',  ic:'📒' },
+];
+const BON_DENOMS = [5000, 10000, 15000];
+
+function fuelMeta(key){ return FUEL_TYPES.find(f => f.key === key); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+function defaultState(){
+  const gaz = {};
+  BOTTLES.forEach(b => gaz[b.key] = {
+    stockOuvPleines:'', stockOuvVides:'', stockFermPleines:'', stockFermVides:'',
+    recharges:0, consignes:0, prixRecharge:b.defRecharge, prixConsigne:b.defConsigne
+  });
+  const fuelPrices = {};
+  FUEL_TYPES.forEach(f => fuelPrices[f.key] = f.defPrice);
+  return {
+    pumps: [
+      { id: uid(), fuel:'super',   label:'Super 1',   ouv:'', ferm:'' },
+      { id: uid(), fuel:'gazole',  label:'Gazole 1',  ouv:'', ferm:'' },
+      { id: uid(), fuel:'petrole', label:'Pétrole 1', ouv:'', ferm:'' },
+    ],
+    fuelPrices, gaz, versements: [],
+  };
+}
+
+let state = defaultState();
+let currentVType = 'especes';
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const fmt = n => Math.round(n).toLocaleString('fr-FR');
+const todayDate = () => new Date().toISOString().slice(0,10);
+
+async function initApp(){
+  document.getElementById('dateLine').textContent = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  await loadShift();
+}
+
+// ---------- POMPES ----------
+function renderPumps(){
+  const box = document.getElementById('pumpCards');
+  box.innerHTML = state.pumps.map(p => `
+    <div class="pump-card">
+      <div class="phead">
+        <select onchange="updatePump('${p.id}','fuel',this.value)">
+          ${FUEL_TYPES.map(f => `<option value="${f.key}" ${f.key===p.fuel?'selected':''}>${f.label}</option>`).join('')}
+        </select>
+        <input class="plabel" value="${p.label}" oninput="updatePump('${p.id}','label',this.value)">
+        <button class="del" onclick="removePump('${p.id}')">✕</button>
+      </div>
+      <div class="pump-fields">
+        <div class="pfield"><label>Index ouverture (L)</label>
+          <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ouv}" oninput="updatePump('${p.id}','ouv',this.value)"></div>
+        <div class="pfield"><label>Index clôture (L)</label>
+          <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ferm}" oninput="updatePump('${p.id}','ferm',this.value)"></div>
+      </div>
+    </div>`).join('') || '<div class="empty">Aucune pompe — ajoutez-en une</div>';
+}
+function addPump(){
+  state.pumps.push({ id: uid(), fuel:'super', label:'Super ' + (state.pumps.filter(p=>p.fuel==='super').length+1), ouv:'', ferm:'' });
+  renderPumps();
+}
+function removePump(id){ state.pumps = state.pumps.filter(p => p.id !== id); renderPumps(); }
+function updatePump(id, field, value){ const p = state.pumps.find(p => p.id === id); if(p) p[field] = value; }
+
+function renderPrices(){
+  document.getElementById('priceFuels').innerHTML = FUEL_TYPES.map(f => `
+    <div class="price-row">
+      <span class="dot" style="background:${f.color}"></span>
+      <span class="lbl">${f.label}<span style="color:var(--muted);font-weight:400"> FCFA/L</span></span>
+      <input class="price-input" inputmode="decimal" value="${state.fuelPrices[f.key]}" oninput="state.fuelPrices['${f.key}']=this.value">
+    </div>`).join('');
+}
+
+// ---------- GAZ ----------
+function renderGaz(){
+  document.getElementById('gazCards').innerHTML = BOTTLES.map(b => {
+    const g = state.gaz[b.key];
+    return `
+    <div class="gaz-card">
+      <div class="gtitle">Bouteille ${b.label}<span class="badge">${g.prixRecharge} / recharge · ${g.prixConsigne} / consigne</span></div>
+      <div class="stock-row">
+        <div class="field"><label>Stock ouv. pleines</label><input inputmode="numeric" value="${g.stockOuvPleines}" oninput="state.gaz['${b.key}'].stockOuvPleines=this.value"></div>
+        <div class="field"><label>Stock ouv. vides</label><input inputmode="numeric" value="${g.stockOuvVides}" oninput="state.gaz['${b.key}'].stockOuvVides=this.value"></div>
+      </div>
+      <div class="stock-row">
+        <div class="field"><label>Stock clôt. pleines</label><input inputmode="numeric" value="${g.stockFermPleines}" oninput="state.gaz['${b.key}'].stockFermPleines=this.value"></div>
+        <div class="field"><label>Stock clôt. vides</label><input inputmode="numeric" value="${g.stockFermVides}" oninput="state.gaz['${b.key}'].stockFermVides=this.value"></div>
+      </div>
+      <div class="counter-row">
+        <div class="ctitle">Recharges<small>client apporte une vide</small></div>
+        <div class="counter"><button onclick="bumpGaz('${b.key}','recharges',-1)">–</button><span class="val mono" id="cnt-${b.key}-recharges">${g.recharges}</span><button onclick="bumpGaz('${b.key}','recharges',1)">+</button></div>
+      </div>
+      <div class="counter-row">
+        <div class="ctitle">Consignes<small>client sans bouteille</small></div>
+        <div class="counter"><button onclick="bumpGaz('${b.key}','consignes',-1)">–</button><span class="val mono" id="cnt-${b.key}-consignes">${g.consignes}</span><button onclick="bumpGaz('${b.key}','consignes',1)">+</button></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function bumpGaz(key, field, delta){
+  state.gaz[key][field] = Math.max(0, (state.gaz[key][field]||0) + delta);
+  document.getElementById(`cnt-${key}-${field}`).textContent = state.gaz[key][field];
+}
+
+// ---------- VERSEMENTS ----------
+function renderVTypeGrid(){
+  document.getElementById('vtypeGrid').innerHTML = VTYPES.map(t => `
+    <div class="vtype-btn ${t.key===currentVType?'active':''}" onclick="selectVType('${t.key}')">
+      <span class="ic">${t.ic}</span><span class="lb">${t.label}</span>
+    </div>`).join('');
+}
+function selectVType(key){ currentVType = key; renderVTypeGrid(); renderExtraFields(); }
+function renderExtraFields(){
+  const box = document.getElementById('vExtraFields');
+  if(currentVType === 'bons'){
+    box.innerHTML = `
+      <div class="bons-grid">
+        ${BON_DENOMS.map(d => `<div class="bons-field"><label>Bons ${d/1000}k</label><input id="bon-${d}" inputmode="numeric" placeholder="0" oninput="recalcBons()"></div>`).join('')}
+      </div>
+      <div class="note-box" style="font-size:11px;color:var(--muted);background:var(--surface-2);border-radius:8px;padding:8px 10px;margin-top:8px;">Montant total : <strong class="mono" id="bonsTotal">0</strong> FCFA</div>`;
+  } else {
+    box.innerHTML = `<input class="led-input" style="margin-bottom:10px" id="vMontant" inputmode="decimal" placeholder="Montant (FCFA)">`;
+  }
+}
+function recalcBons(){
+  let total = 0;
+  BON_DENOMS.forEach(d => total += num(document.getElementById('bon-'+d).value) * d);
+  document.getElementById('bonsTotal').textContent = fmt(total);
+}
+function addVersement(){
+  let montant = 0, detail = null;
+  if(currentVType === 'bons'){
+    detail = {};
+    BON_DENOMS.forEach(d => { const c = num(document.getElementById('bon-'+d).value); if(c > 0) detail[d] = c; montant += c * d; });
+    if(montant <= 0){ alert('Indiquez au moins un bon.'); return; }
+  } else {
+    montant = num(document.getElementById('vMontant').value);
+    if(montant <= 0){ alert('Indiquez un montant.'); return; }
+  }
+  const note = document.getElementById('vNote').value.trim();
+  state.versements.push({ id: uid(), type: currentVType, montant, detail, note, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
+  document.getElementById('vNote').value = '';
+  renderExtraFields(); renderVList();
+}
+function removeVersement(id){ state.versements = state.versements.filter(v => v.id !== id); renderVList(); }
+function renderVList(){
+  const list = state.versements.slice().reverse();
+  document.getElementById('vCount').textContent = state.versements.length ? `(${state.versements.length})` : '';
+  document.getElementById('vList').innerHTML = list.map(v => {
+    const meta = VTYPES.find(t => t.key === v.type);
+    let sub = v.time;
+    if(v.detail) sub += ' · ' + Object.entries(v.detail).map(([d,c]) => `${c}×${d/1000}k`).join(', ');
+    if(v.note) sub += ' · ' + v.note;
+    return `
+    <div class="list-item ${v.type==='credit'?'credit':''}">
+      <span class="ic">${meta.ic}</span>
+      <div class="info"><div class="t">${meta.label}</div><div class="s">${sub}</div></div>
+      <span class="amt">${fmt(v.montant)}</span>
+      <button class="del" onclick="removeVersement('${v.id}')">✕</button>
+    </div>`;
+  }).join('') || '<div class="empty">Aucun versement enregistré</div>';
+}
+
+// ---------- CALCULATIONS ----------
+function computeFuelSales(){
+  const byFuel = {};
+  FUEL_TYPES.forEach(f => byFuel[f.key] = { ...f, qty:0, montant:0, prix: num(state.fuelPrices[f.key]) });
+  state.pumps.forEach(p => {
+    const qty = Math.max(0, num(p.ferm) - num(p.ouv));
+    byFuel[p.fuel].qty += qty;
+    byFuel[p.fuel].montant += qty * num(state.fuelPrices[p.fuel]);
+  });
+  return Object.values(byFuel);
+}
+function computeGazSales(){
+  return BOTTLES.map(b => {
+    const g = state.gaz[b.key];
+    const montant = (g.recharges * num(g.prixRecharge)) + (g.consignes * num(g.prixConsigne));
+    return { ...b, recharges:g.recharges, consignes:g.consignes, montant };
+  });
+}
+function computePayTotals(){
+  const totals = {}; VTYPES.forEach(t => totals[t.key] = 0);
+  state.versements.forEach(v => totals[v.type] += v.montant);
+  return totals;
+}
+
+function renderSituation(){
+  const fuelSales = computeFuelSales();
+  const gazSales = computeGazSales();
+  const totalFuel = fuelSales.reduce((s,f)=>s+f.montant,0);
+  const totalGaz = gazSales.reduce((s,g)=>s+g.montant,0);
+  const totalCA = totalFuel + totalGaz;
+  const pay = computePayTotals();
+  const totalEncaisse = pay.especes + pay.orange + pay.tomcard + pay.bons;
+  const totalCredit = pay.credit;
+  const totalRecu = totalEncaisse + totalCredit;
+  const ecart = totalRecu - totalCA;
+
+  document.getElementById('sumFuels').innerHTML = fuelSales.map(f => `
+    <div class="summary-line"><span>${f.label} <span style="color:var(--muted)">— ${f.qty.toFixed(1)} L</span></span><span class="v">${fmt(f.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('sumGaz').innerHTML = gazSales.map(g => `
+    <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('sumPay').innerHTML = VTYPES.map(t => `
+    <div class="summary-line"><span>${t.ic} ${t.label}</span><span class="v">${fmt(pay[t.key])}</span></div>`).join('');
+  document.getElementById('sumFinal').innerHTML = `
+    <div class="summary-line"><span>Total versé (espèces + mobile + bons)</span><span class="v">${fmt(totalEncaisse)}</span></div>
+    <div class="summary-line"><span>Total à crédit</span><span class="v">${fmt(totalCredit)}</span></div>
+    <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(totalCA)} F</span></div>
+    <div class="summary-line total"><span>Reçu (versé + crédit)</span><span class="v">${fmt(totalRecu)} F</span></div>
+  `;
+  const ok = Math.abs(ecart) < 1;
+  document.getElementById('situationBox').innerHTML = `
+    <div class="situation-box ${ok || ecart > 0 ? 'ok' : 'bad'}">
+      <div class="tag">${ecart === 0 ? 'Caisse juste' : (ecart < 0 ? 'Manquant' : 'Excédent')}</div>
+      <div class="amount">${ecart > 0 ? '+' : ''}${fmt(ecart)} F</div>
+      <div class="hint">Reçu (${fmt(totalRecu)}) − Vendu (${fmt(totalCA)})</div>
+    </div>`;
+}
+
+// ---------- TABS ----------
+function showView(name){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelector(`.tab[data-view="${name}"]`).classList.add('active');
+  if(name === 'situation') renderSituation();
+}
+
+// ---------- PERSISTENCE (Supabase — partagé entre tous les appareils du pompiste) ----------
+async function saveShift(){
+  const msg = document.getElementById('statusMsg');
+  if(!currentUser){ msg.textContent = 'Vous devez être connecté.'; return; }
+  msg.textContent = 'Enregistrement…';
+  try{
+    const { error } = await sb.from('shifts').upsert({
+      user_id: currentUser.id,
+      shift_date: todayDate(),
+      data: state,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,shift_date' });
+    if(error) throw error;
+    msg.textContent = '✓ Enregistré en ligne — ' + new Date().toLocaleTimeString('fr-FR');
+  }catch(e){
+    msg.textContent = "Échec de l'enregistrement : " + e.message;
+  }
+}
+async function loadShift(){
+  try{
+    const { data, error } = await sb.from('shifts')
+      .select('data')
+      .eq('user_id', currentUser.id)
+      .eq('shift_date', todayDate())
+      .maybeSingle();
+    if(error) throw error;
+    if(data && data.data){
+      const saved = data.data;
+      const def = defaultState();
+      state = Object.assign(def, saved);
+      state.pumps = Array.isArray(saved.pumps) && saved.pumps.length ? saved.pumps : def.pumps;
+      state.versements = Array.isArray(saved.versements) ? saved.versements : [];
+      state.fuelPrices = Object.assign(def.fuelPrices, saved.fuelPrices || {});
+      BOTTLES.forEach(b => state.gaz[b.key] = Object.assign(def.gaz[b.key], saved.gaz?.[b.key] || {}));
+    } else {
+      state = defaultState();
+    }
+  }catch(e){
+    console.warn('Chargement impossible, démarrage à vide :', e.message);
+    state = defaultState();
+  }
+  renderAll();
+}
+function newShift(){
+  if(confirm('Réinitialiser le service en cours ? Les données non enregistrées seront perdues.')){
+    state = defaultState();
+    renderAll();
+    showView('pompes');
+  }
+}
+function renderAll(){
+  renderPumps(); renderPrices(); renderGaz(); renderVTypeGrid(); renderExtraFields(); renderVList();
+}
+</script>
+</body>
+</html>

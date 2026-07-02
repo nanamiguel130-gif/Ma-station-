@@ -247,7 +247,8 @@
     <div class="panel"><h2>Ventes gaz</h2><div id="sumGaz"></div></div>
     <div class="panel"><h2>Versements par moyen</h2><div id="sumPay"></div></div>
     <div class="panel"><h2>Récapitulatif</h2><div id="sumFinal"></div></div>
-    <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
+   <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
+    <button class="save-btn ghost" id="backToVersementBtn" onclick="showStage('service')">← Ajouter un versement oublié</button>
     <button class="save-btn ghost" id="backToClotureBtn" onclick="showStage('cloture')">← Corriger les index</button>
     <div class="status-msg" id="statusMsg"></div>
   </section>

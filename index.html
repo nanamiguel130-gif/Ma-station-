@@ -494,6 +494,13 @@ function renderOuverture(){
     </div>`).join('');
 }
 function updatePump(id, field, value){ const p = state.pumps.find(p => p.id === id); if(p) p[field] = value; }
+function addPump(fuelKey){
+  const meta = fuelMeta(fuelKey);
+  const count = state.pumps.filter(p => p.fuel === fuelKey).length + 1;
+  state.pumps.push({ id: uid(), fuel: fuelKey, label: meta.label + ' ' + count, ouv:'', ferm:'' });
+  renderOuverture();
+}
+function removePump(id){ state.pumps = state.pumps.filter(p => p.id !== id); renderOuverture(); }
 
 async function openShift(){
   state.status = 'open';

@@ -457,13 +457,20 @@ function renderOuverture(){
     const pumpsForFuel = state.pumps.filter(p => p.fuel === f.key);
     return `
     <div class="fuel-group">
-      <div class="fuel-group-head"><span class="fdot" style="background:${f.color}"></span><span class="fname">${f.label}</span></div>
+      <div class="fuel-group-head">
+        <span class="fdot" style="background:${f.color}"></span>
+        <span class="fname">${f.label}</span>
+        <button class="addbtn" onclick="addPump('${f.key}')">+ Ajouter un pistolet</button>
+      </div>
       ${pumpsForFuel.map(p => `
         <div class="pump-card">
-          <div class="plabel-row">${p.label}</div>
+          <div class="plabel-row" style="display:flex;align-items:center;gap:8px">
+            <span style="flex:1">${p.label}</span>
+            <button class="del" onclick="removePump('${p.id}')">✕</button>
+          </div>
           <span class="field-label">Index ouverture (L)</span>
           <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ouv}" oninput="updatePump('${p.id}','ouv',this.value)">
-        </div>`).join('')}
+        </div>`).join('') || '<div class="empty" style="padding:10px 0">Aucun pistolet — ajoutez-en un</div>'}
     </div>`;
   }).join('');
 

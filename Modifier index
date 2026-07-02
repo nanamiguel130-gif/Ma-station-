@@ -247,7 +247,7 @@
     <div class="panel"><h2>Ventes gaz</h2><div id="sumGaz"></div></div>
     <div class="panel"><h2>Versements par moyen</h2><div id="sumPay"></div></div>
     <div class="panel"><h2>Récapitulatif</h2><div id="sumFinal"></div></div>
-   <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
+    <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
     <button class="save-btn ghost" id="backToVersementBtn" onclick="showStage('service')">← Ajouter un versement oublié</button>
     <button class="save-btn ghost" id="backToClotureBtn" onclick="showStage('cloture')">← Corriger les index</button>
     <div class="status-msg" id="statusMsg"></div>
@@ -484,6 +484,10 @@ function renderOuverture(){
         <div class="field"><span class="field-label">Stock pleines</span><input class="led-input" style="font-size:15px" inputmode="numeric" value="${g.ouvPleines}" oninput="state.gaz['${b.key}'].ouvPleines=this.value"></div>
         <div class="field"><span class="field-label">Stock vides</span><input class="led-input" style="font-size:15px" inputmode="numeric" value="${g.ouvVides}" oninput="state.gaz['${b.key}'].ouvVides=this.value"></div>
       </div>
+      <div class="stock-row" style="margin-top:8px">
+        <div class="field"><span class="field-label">Prix recharge</span><input class="price-input" style="width:100%" inputmode="decimal" value="${g.prixRecharge}" oninput="state.gaz['${b.key}'].prixRecharge=this.value"></div>
+        <div class="field"><span class="field-label">Prix consigne</span><input class="price-input" style="width:100%" inputmode="decimal" value="${g.prixConsigne}" oninput="state.gaz['${b.key}'].prixConsigne=this.value"></div>
+      </div>
     </div>`;
   }).join('');
 
@@ -658,6 +662,7 @@ function computeAndShowSituation(readOnly){
     </div>`;
 
   document.getElementById('closeShiftBtn').classList.toggle('hidden', !!readOnly);
+  document.getElementById('backToVersementBtn').classList.toggle('hidden', !!readOnly);
   document.getElementById('backToClotureBtn').classList.toggle('hidden', !!readOnly);
   showStage('situation');
 }
@@ -670,9 +675,10 @@ async function closeShift(){
   if(ok){
     msg.textContent = '✓ Poste clôturé et archivé';
     updateStatusHeader();
-    document.getElementById('closeShiftBtn').classList.toggle('hidden', !!readOnly);
-  document.getElementById('backToVersementBtn').classList.toggle('hidden', !!readOnly);
-  document.getElementById('backToClotureBtn').classList.toggle('hidden', !!readOnly);
+    document.getElementById('closeShiftBtn').classList.add('hidden');
+    document.getElementById('backToVersementBtn').classList.add('hidden');
+    document.getElementById('backToClotureBtn').classList.add('hidden');
+  } else {
     msg.textContent = "Échec de l'enregistrement — réessayez.";
   }
 }

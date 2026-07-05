@@ -181,6 +181,7 @@
 </head>
 <body>
 
+<!-- ============== ÉCRAN DE CONNEXION ============== -->
 <div id="authScreen">
   <div class="auth-box">
     <div class="auth-logo"><img src="fichier_00000000c0e871f4ac5a2f1708c3fec5.png" alt="Ma Station Service"></div>
@@ -209,6 +210,7 @@
   </div>
 </div>
 
+<!-- ============== APP ============== -->
 <div id="appRoot" class="hidden">
 <header class="top">
   <div class="brand">
@@ -220,6 +222,7 @@
 
 <main>
 
+  <!-- ---------- OUVERTURE DU POSTE ---------- -->
   <section class="view" id="view-ouverture">
     <div class="lead">
       <div class="ic">🌅</div>
@@ -242,6 +245,7 @@
     <div class="status-msg" id="ouvStatusMsg"></div>
   </section>
 
+  <!-- ---------- SERVICE EN COURS ---------- -->
   <section class="view" id="view-service">
     <div class="lead" style="padding:18px 16px;">
       <div class="ic">⛽</div>
@@ -260,9 +264,20 @@
       <h2>Versements du jour <span class="badge mono" id="vCount"></span></h2>
       <div id="vList"></div>
     </div>
+    <div class="panel">
+      <h2>Nouvelle dépense</h2>
+      <input class="note-input" id="depMotif" placeholder="Motif (ex: achat sucre, café, matériel...)">
+      <input class="led-input" style="margin-bottom:10px" id="depMontant" inputmode="decimal" placeholder="Montant (FCFA)">
+      <button class="save-btn ghost" onclick="addDepense()" style="color:var(--bad);border-color:rgba(229,72,77,.3)">+ Ajouter cette dépense</button>
+    </div>
+    <div class="panel">
+      <h2>Dépenses du jour <span class="badge mono" id="depCount"></span></h2>
+      <div id="depList"></div>
+    </div>
     <button class="save-btn" onclick="goToClosing()">🔒 Clôturer le service</button>
   </section>
 
+  <!-- ---------- CLÔTURE : SAISIE DES INDEX ---------- -->
   <section class="view" id="view-cloture">
     <div class="back-link" onclick="showStage('service')">← Retour au service</div>
     <div class="lead">
@@ -281,11 +296,13 @@
     <button class="save-btn" onclick="computeAndShowSituation()">Calculer la situation</button>
   </section>
 
+  <!-- ---------- SITUATION FINALE ---------- -->
   <section class="view" id="view-situation">
     <div id="situationBox"></div>
     <div class="panel"><h2>Ventes carburants</h2><div id="sumFuels"></div></div>
     <div class="panel"><h2>Ventes gaz</h2><div id="sumGaz"></div></div>
     <div class="panel"><h2>Versements par moyen</h2><div id="sumPay"></div></div>
+    <div class="panel"><h2>Dépenses</h2><div id="sumDepenses"></div></div>
     <div class="panel"><h2>Récapitulatif</h2><div id="sumFinal"></div></div>
     <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
     <button class="save-btn ghost" onclick="shareWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,.35)">📲 Partager via WhatsApp</button>
@@ -294,6 +311,7 @@
     <div class="status-msg" id="statusMsg"></div>
   </section>
 
+  <!-- ---------- HISTORIQUE ---------- -->
   <section class="view" id="view-historique">
     <div class="month-recap">
       <h2 id="monthTitle">Récapitulatif du mois</h2>
@@ -305,12 +323,14 @@
     </div>
   </section>
 
+  <!-- ---------- DÉTAIL D'UNE JOURNÉE ARCHIVÉE ---------- -->
   <section class="view" id="view-detail">
     <div class="back-link" onclick="showStage('historique')">← Retour à l'historique</div>
     <div id="detailBox"></div>
     <div class="panel"><h2>Ventes carburants</h2><div id="detailFuels"></div></div>
     <div class="panel"><h2>Ventes gaz</h2><div id="detailGaz"></div></div>
     <div class="panel"><h2>Versements par moyen</h2><div id="detailPay"></div></div>
+    <div class="panel"><h2>Dépenses</h2><div id="detailDepenses"></div></div>
     <div class="panel"><h2>Récapitulatif</h2><div id="detailFinal"></div></div>
   </section>
 
@@ -321,9 +341,11 @@
   <button class="tab" data-tab="historique" onclick="switchTab('historique')"><span class="ic">📅</span>Historique</button>
 </nav>
 
-</div>
-
-<script>
+  </div>
+  <script>
+// ============================================================
+// CONFIGURATION SUPABASE
+// ============================================================
 const SUPABASE_URL = "https://golrvqweqcudptwdzufk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_tmdtvlF6Mcd5vPQWiJeMdQ_eeee0-J1";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -417,7 +439,7 @@ function defaultState(){
       { id: uid(), fuel:'gazole',  label:'Gazole 1',  ouv:'', ferm:'' },
       { id: uid(), fuel:'petrole', label:'Pétrole 1', ouv:'', ferm:'' },
     ],
-    fuelPrices, gaz, versements: [],
+    fuelPrices, gaz, versements: [], depenses: [],
   };
 }
 
@@ -441,6 +463,7 @@ async function loadTodayShift(){
       state = Object.assign(def, saved);
       state.pumps = Array.isArray(saved.pumps) && saved.pumps.length ? saved.pumps : def.pumps;
       state.versements = Array.isArray(saved.versements) ? saved.versements : [];
+      state.depenses = Array.isArray(saved.depenses) ? saved.depenses : [];
       state.fuelPrices = Object.assign(def.fuelPrices, saved.fuelPrices || {});
       BOTTLES.forEach(b => state.gaz[b.key] = Object.assign(def.gaz[b.key], saved.gaz?.[b.key] || {}));
     } else {
@@ -560,7 +583,7 @@ async function openShift(){
 }
 
 function renderService(){
-  renderVTypeGrid(); renderExtraFields(); renderVList();
+  renderVTypeGrid(); renderExtraFields(); renderVList(); renderDepenses();
 }
 function renderVTypeGrid(){
   document.getElementById('vtypeGrid').innerHTML = VTYPES.map(t => `
@@ -649,6 +672,30 @@ function renderVList(){
   }).join('') || '<div class="empty">Aucun versement enregistré</div>';
 }
 
+async function addDepense(){
+  const motif = document.getElementById('depMotif').value.trim();
+  const montant = num(document.getElementById('depMontant').value);
+  if(!motif){ alert('Indiquez le motif de la dépense.'); return; }
+  if(montant <= 0){ alert('Indiquez un montant.'); return; }
+  state.depenses.push({ id: uid(), motif, montant, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
+  document.getElementById('depMotif').value = '';
+  document.getElementById('depMontant').value = '';
+  renderDepenses();
+  await persist();
+}
+async function removeDepense(id){ state.depenses = state.depenses.filter(d => d.id !== id); renderDepenses(); await persist(); }
+function renderDepenses(){
+  const list = state.depenses.slice().reverse();
+  document.getElementById('depCount').textContent = state.depenses.length ? `(${state.depenses.length})` : '';
+  document.getElementById('depList').innerHTML = list.map(d => `
+    <div class="list-item">
+      <span class="ic">🧺</span>
+      <div class="info"><div class="t">${d.motif}</div><div class="s">${d.time}</div></div>
+      <span class="amt" style="color:var(--bad)">-${fmt(d.montant)}</span>
+      <button class="del" onclick="removeDepense('${d.id}')">✕</button>
+    </div>`).join('') || '<div class="empty">Aucune dépense enregistrée</div>';
+}
+
 function goToClosing(){
   document.getElementById('fermPumpCards').innerHTML = FUEL_TYPES.map(f => {
     const pumpsForFuel = state.pumps.filter(p => p.fuel === f.key);
@@ -714,7 +761,8 @@ function computeAndShowSituation(readOnly){
   const pay = computePayTotals(state.versements);
   const totalEncaisse = pay.especes + pay.orange + pay.tomcard + pay.bons;
   const totalCredit = pay.credit;
-  const totalRecu = totalEncaisse + totalCredit;
+  const totalDepenses = state.depenses.reduce((s,d)=>s+d.montant,0);
+  const totalRecu = totalEncaisse + totalCredit + totalDepenses;
   const ecart = totalRecu - totalCA;
 
   document.getElementById('sumFuels').innerHTML = fuelSales.map(f => `
@@ -723,11 +771,14 @@ function computeAndShowSituation(readOnly){
     <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
   document.getElementById('sumPay').innerHTML = VTYPES.map(t => `
     <div class="summary-line"><span>${t.ic} ${t.label}</span><span class="v">${fmt(pay[t.key])}</span></div>`).join('');
+  document.getElementById('sumDepenses').innerHTML = state.depenses.map(d => `
+    <div class="summary-line"><span>${d.motif}</span><span class="v">-${fmt(d.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
   document.getElementById('sumFinal').innerHTML = `
     <div class="summary-line"><span>Total versé (espèces + mobile + bons)</span><span class="v">${fmt(totalEncaisse)}</span></div>
     <div class="summary-line"><span>Total à crédit</span><span class="v">${fmt(totalCredit)}</span></div>
+    <div class="summary-line"><span>Total dépenses (justifiées)</span><span class="v">-${fmt(totalDepenses)}</span></div>
     <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(totalCA)} F</span></div>
-    <div class="summary-line total"><span>Reçu (versé + crédit)</span><span class="v">${fmt(totalRecu)} F</span></div>`;
+    <div class="summary-line total"><span>Reçu (versé + crédit + dépenses)</span><span class="v">${fmt(totalRecu)} F</span></div>`;
   const ok = ecart >= 0;
   document.getElementById('situationBox').innerHTML = `
     <div class="situation-box ${ok ? 'ok' : 'bad'}">
@@ -741,7 +792,7 @@ function computeAndShowSituation(readOnly){
   document.getElementById('backToClotureBtn').classList.toggle('hidden', !!readOnly);
   showStage('situation');
 
-  window._lastSituation = { fuelSales, gazSales, totalFuel, totalGaz, totalCA, pay, totalEncaisse, totalCredit, totalRecu, ecart };
+  window._lastSituation = { fuelSales, gazSales, totalFuel, totalGaz, totalCA, pay, totalEncaisse, totalCredit, totalDepenses, totalRecu, ecart };
 }
 
 function shareWhatsApp(){
@@ -755,6 +806,7 @@ function shareWhatsApp(){
   s.gazSales.forEach(g => { if(g.recharges > 0 || g.consignes > 0) msg += `${g.label}: ${g.recharges} rech. / ${g.consignes} cons. — ${fmt(g.montant)} F\n`; });
   msg += `\n*Versements*\n`;
   VTYPES.forEach(t => { if(s.pay[t.key] > 0) msg += `${t.label}: ${fmt(s.pay[t.key])} F\n`; });
+  if(s.totalDepenses > 0) msg += `\n*Dépenses:* -${fmt(s.totalDepenses)} F\n`;
   msg += `\n*Vendu théorique:* ${fmt(s.totalCA)} F\n`;
   msg += `*Reçu total:* ${fmt(s.totalRecu)} F\n`;
   msg += `*Écart:* ${s.ecart > 0 ? '+' : ''}${fmt(s.ecart)} F ${s.ecart < 0 ? '(manquant)' : (s.ecart > 0 ? '(excédent)' : '(caisse juste)')}`;
@@ -795,8 +847,9 @@ function shiftTotals(dayState){
   const gazSales = computeGazSalesFor(dayState);
   const totalCA = fuelSales.reduce((s,f)=>s+f.montant,0) + gazSales.reduce((s,g)=>s+g.montant,0);
   const pay = computePayTotals(dayState.versements || []);
-  const totalRecu = pay.especes + pay.orange + pay.tomcard + pay.bons + pay.credit;
-  return { fuelSales, gazSales, pay, totalCA, totalRecu, ecart: totalRecu - totalCA };
+  const totalDepenses = (dayState.depenses || []).reduce((s,d)=>s+d.montant,0);
+  const totalRecu = pay.especes + pay.orange + pay.tomcard + pay.bons + pay.credit + totalDepenses;
+  return { fuelSales, gazSales, pay, totalDepenses, totalCA, totalRecu, ecart: totalRecu - totalCA };
 }
 function computeFuelSalesFor(dayState){
   const byFuel = {}; FUEL_TYPES.forEach(f => byFuel[f.key] = { ...f, qty:0, montant:0 });
@@ -864,6 +917,8 @@ function openHistoryDetail(dateStr){
     <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
   document.getElementById('detailPay').innerHTML = VTYPES.map(v => `
     <div class="summary-line"><span>${v.ic} ${v.label}</span><span class="v">${fmt(t.pay[v.key])}</span></div>`).join('');
+  document.getElementById('detailDepenses').innerHTML = (d.depenses || []).map(dep => `
+    <div class="summary-line"><span>${dep.motif}</span><span class="v">-${fmt(dep.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
   document.getElementById('detailFinal').innerHTML = `
     <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(t.totalCA)} F</span></div>
     <div class="summary-line total"><span>Reçu total</span><span class="v">${fmt(t.totalRecu)} F</span></div>`;
@@ -871,4 +926,4 @@ function openHistoryDetail(dateStr){
 }
 </script>
 </body>
-  </html>
+</html>

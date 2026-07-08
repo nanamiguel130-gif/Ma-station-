@@ -274,7 +274,9 @@
       <h2>Dépenses du jour <span class="badge mono" id="depCount"></span></h2>
       <div id="depList"></div>
     </div>
-    <button class="save-btn" onclick="goToClosing()">🔒 Clôturer le service</button>
+    <button class="save-btn" id="closeServiceBtn" onclick="goToClosing()">🔒 Clôturer le service</button>
+    <button class="save-btn hidden" id="recalcSituationBtn" onclick="computeAndShowSituation()">↻ Revoir la situation (index déjà enregistrés)</button>
+    <button class="save-btn ghost hidden" id="editClosingBtn" onclick="goToClosing()">✎ Modifier les index de clôture</button>
   </section>
 
   <!-- ---------- CLÔTURE : SAISIE DES INDEX ---------- -->
@@ -306,7 +308,7 @@
     <div class="panel"><h2>Récapitulatif</h2><div id="sumFinal"></div></div>
     <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
     <button class="save-btn ghost" onclick="shareWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,.35)">📲 Partager via WhatsApp</button>
-    <button class="save-btn ghost" id="backToVersementBtn" onclick="showStage('service')">← Ajouter un versement oublié</button>
+    <button class="save-btn ghost" id="backToVersementBtn" onclick="backToVersementFromSituation()">← Ajouter un versement oublié</button>
     <button class="save-btn ghost" id="backToClotureBtn" onclick="showStage('cloture')">← Corriger les index</button>
     <div class="status-msg" id="statusMsg"></div>
   </section>
@@ -341,8 +343,7 @@
   <button class="tab" data-tab="historique" onclick="switchTab('historique')"><span class="ic">📅</span>Historique</button>
 </nav>
 
-  </div>
-  <script>
+</div><script>
 // ============================================================
 // CONFIGURATION SUPABASE
 // ============================================================
@@ -402,6 +403,9 @@ sb.auth.onAuthStateChange((event, session) => {
   }
 });
 
+// ============================================================
+// DONNÉES DE RÉFÉRENCE
+// ============================================================
 const FUEL_TYPES = [
   { key:'super',   label:'Super',   color:'var(--super)',   defPrice:856 },
   { key:'gazole',  label:'Gazole',  color:'var(--gazole)',  defPrice:844 },
@@ -432,7 +436,7 @@ function defaultState(){
   const fuelPrices = {};
   FUEL_TYPES.forEach(f => fuelPrices[f.key] = f.defPrice);
   return {
-    status: 'none',
+    status: 'none', // 'none' | 'open' | 'closed'
     openedAt: null, closedAt: null,
     pumps: [
       { id: uid(), fuel:'super',   label:'Super 1',   ouv:'', ferm:'' },
@@ -445,14 +449,17 @@ function defaultState(){
 
 let state = defaultState();
 let currentVType = 'especes';
-let currentEditId = null;
-let currentStage = 'ouverture';
+let currentStage = 'ouverture'; // ouverture | service | cloture | situation | historique | detail
 let historyCache = [];
+let reviewMode = false;
 
 async function initApp(){
   await loadTodayShift();
 }
 
+// ============================================================
+// PERSISTENCE
+// ============================================================
 async function loadTodayShift(){
   try{
     const { data, error } = await sb.from('shifts').select('data').eq('user_id', currentUser.id).eq('shift_date', todayDate()).maybeSingle();
@@ -485,6 +492,9 @@ async function persist(){
   }catch(e){ console.warn('Sauvegarde impossible :', e.message); return false; }
 }
 
+// ============================================================
+// NAVIGATION / ÉTAT DU POSTE
+// ============================================================
 function routeToStage(){
   updateStatusHeader();
   if(state.status === 'none'){
@@ -494,6 +504,7 @@ function routeToStage(){
     renderService();
     showStage('service');
   } else {
+    // closed -> show final situation read-only
     computeAndShowSituation(true);
   }
   document.querySelector('.tab[data-tab="service"]').classList.add('active');
@@ -519,6 +530,9 @@ function switchTab(tab){
   else { routeToStage(); }
 }
 
+// ============================================================
+// OUVERTURE DU POSTE
+// ============================================================
 function renderOuverture(){
   document.getElementById('ouvPumpCards').innerHTML = FUEL_TYPES.map(f => {
     const pumpsForFuel = state.pumps.filter(p => p.fuel === f.key);
@@ -582,8 +596,19 @@ async function openShift(){
   else { msg.textContent = "Échec de l'enregistrement — vérifiez votre connexion."; }
 }
 
+// ============================================================
+// SERVICE EN COURS — VERSEMENTS
+// ============================================================
 function renderService(){
   renderVTypeGrid(); renderExtraFields(); renderVList(); renderDepenses();
+  document.getElementById('closeServiceBtn').classList.toggle('hidden', reviewMode);
+  document.getElementById('recalcSituationBtn').classList.toggle('hidden', !reviewMode);
+  document.getElementById('editClosingBtn').classList.toggle('hidden', !reviewMode);
+}
+function backToVersementFromSituation(){
+  reviewMode = true;
+  renderService();
+  showStage('service');
 }
 function renderVTypeGrid(){
   document.getElementById('vtypeGrid').innerHTML = VTYPES.map(t => `
@@ -629,6 +654,7 @@ async function addVersement(){
   await persist();
 }
 async function removeVersement(id){ state.versements = state.versements.filter(v => v.id !== id); renderVList(); await persist(); }
+let currentEditId = null;
 function editVersement(id){
   const v = state.versements.find(v => v.id === id);
   if(!v) return;
@@ -696,6 +722,9 @@ function renderDepenses(){
     </div>`).join('') || '<div class="empty">Aucune dépense enregistrée</div>';
 }
 
+// ============================================================
+// CLÔTURE — SAISIE DES INDEX DE FIN
+// ============================================================
 function goToClosing(){
   document.getElementById('fermPumpCards').innerHTML = FUEL_TYPES.map(f => {
     const pumpsForFuel = state.pumps.filter(p => p.fuel === f.key);
@@ -725,6 +754,9 @@ function goToClosing(){
   showStage('cloture');
 }
 
+// ============================================================
+// CALCULS
+// ============================================================
 function computeFuelSales(){
   const byFuel = {};
   FUEL_TYPES.forEach(f => byFuel[f.key] = { ...f, qty:0, montant:0 });
@@ -817,6 +849,7 @@ function shareWhatsApp(){
 async function closeShift(){
   state.status = 'closed';
   state.closedAt = new Date().toISOString();
+  reviewMode = false;
   const ok = await persist();
   const msg = document.getElementById('statusMsg');
   if(ok){
@@ -830,6 +863,9 @@ async function closeShift(){
   }
 }
 
+// ============================================================
+// HISTORIQUE + RÉCAP MENSUEL
+// ============================================================
 async function loadHistory(){
   try{
     const { data, error } = await sb.from('shifts')
@@ -926,4 +962,4 @@ function openHistoryDetail(dateStr){
 }
 </script>
 </body>
-</html>
+  </html>

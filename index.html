@@ -218,6 +218,7 @@
     <span class="user-chip mono" id="userChip" onclick="signOut()">⎋ Déconnexion</span>
   </div>
   <div class="status-line"><span class="status-dot" id="statusDot"></span><span id="statusText">—</span></div>
+  <div class="status-line hidden" id="postInfoLine"></div>
 </header>
 
 <main>
@@ -228,6 +229,15 @@
       <div class="ic">🌅</div>
       <h1>Ouverture du poste</h1>
       <p>Renseignez les index et stocks de départ. Une seule fois, au début de votre service.</p>
+    </div>
+    <div class="panel">
+      <h2>Informations du poste</h2>
+      <input class="note-input" id="infoStation" placeholder="Nom de la station (ex: Total Baffia)">
+      <input class="note-input" id="infoPompiste" placeholder="Votre nom">
+      <div class="stock-row">
+        <div class="field"><span class="field-label">Numéro du poste</span><input class="note-input" style="margin-bottom:0" id="infoPoste" placeholder="Ex: 2"></div>
+        <div class="field"><span class="field-label">Numéro de l'îlot</span><input class="note-input" style="margin-bottom:0" id="infoIlot" placeholder="Ex: A"></div>
+      </div>
     </div>
     <div class="panel">
       <h2>Index d'ouverture — carburants</h2>
@@ -300,6 +310,7 @@
 
   <!-- ---------- SITUATION FINALE ---------- -->
   <section class="view" id="view-situation">
+    <div class="panel" id="situInfoBox"></div>
     <div id="situationBox"></div>
     <div class="panel"><h2>Ventes carburants</h2><div id="sumFuels"></div></div>
     <div class="panel"><h2>Ventes gaz</h2><div id="sumGaz"></div></div>
@@ -328,6 +339,7 @@
   <!-- ---------- DÉTAIL D'UNE JOURNÉE ARCHIVÉE ---------- -->
   <section class="view" id="view-detail">
     <div class="back-link" onclick="showStage('historique')">← Retour à l'historique</div>
+    <div class="panel" id="detailInfoBox"></div>
     <div id="detailBox"></div>
     <div class="panel"><h2>Ventes carburants</h2><div id="detailFuels"></div></div>
     <div class="panel"><h2>Ventes gaz</h2><div id="detailGaz"></div></div>
@@ -438,6 +450,7 @@ function defaultState(){
   return {
     status: 'none', // 'none' | 'open' | 'closed'
     openedAt: null, closedAt: null,
+    stationName: '', pompisteName: '', posteNumber: '', ilotNumber: '',
     pumps: [
       { id: uid(), fuel:'super',   label:'Super 1',   ouv:'', ferm:'' },
       { id: uid(), fuel:'gazole',  label:'Gazole 1',  ouv:'', ferm:'' },
@@ -452,9 +465,17 @@ let currentVType = 'especes';
 let currentStage = 'ouverture'; // ouverture | service | cloture | situation | historique | detail
 let historyCache = [];
 let reviewMode = false;
+let profileInfo = { full_name: '', station_name: '' };
 
 async function initApp(){
+  await loadProfile();
   await loadTodayShift();
+}
+async function loadProfile(){
+  try{
+    const { data, error } = await sb.from('profiles').select('full_name,station_name').eq('id', currentUser.id).maybeSingle();
+    if(!error && data){ profileInfo = { full_name: data.full_name || '', station_name: data.station_name || '' }; }
+  }catch(e){ console.warn('Profil indisponible :', e.message); }
 }
 
 // ============================================================
@@ -471,6 +492,10 @@ async function loadTodayShift(){
       state.pumps = Array.isArray(saved.pumps) && saved.pumps.length ? saved.pumps : def.pumps;
       state.versements = Array.isArray(saved.versements) ? saved.versements : [];
       state.depenses = Array.isArray(saved.depenses) ? saved.depenses : [];
+      state.stationName = saved.stationName || '';
+      state.pompisteName = saved.pompisteName || '';
+      state.posteNumber = saved.posteNumber || '';
+      state.ilotNumber = saved.ilotNumber || '';
       state.fuelPrices = Object.assign(def.fuelPrices, saved.fuelPrices || {});
       BOTTLES.forEach(b => state.gaz[b.key] = Object.assign(def.gaz[b.key], saved.gaz?.[b.key] || {}));
     } else {
@@ -504,7 +529,6 @@ function routeToStage(){
     renderService();
     showStage('service');
   } else {
-    // closed -> show final situation read-only
     computeAndShowSituation(true);
   }
   document.querySelector('.tab[data-tab="service"]').classList.add('active');
@@ -517,6 +541,10 @@ function updateStatusHeader(){
   if(state.status === 'open') txt.textContent = 'Poste ouvert depuis ' + (state.openedAt ? new Date(state.openedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '');
   else if(state.status === 'closed') txt.textContent = 'Poste clôturé — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
   else txt.textContent = 'Poste non ouvert — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+  const info = document.getElementById('postInfoLine');
+  const bits = [state.stationName, state.posteNumber ? 'Poste ' + state.posteNumber : null, state.ilotNumber ? 'Îlot ' + state.ilotNumber : null].filter(Boolean);
+  if(bits.length){ info.textContent = bits.join(' · '); info.classList.remove('hidden'); }
+  else { info.classList.add('hidden'); }
 }
 function showStage(stage){
   currentStage = stage;
@@ -534,6 +562,15 @@ function switchTab(tab){
 // OUVERTURE DU POSTE
 // ============================================================
 function renderOuverture(){
+  document.getElementById('infoStation').value = state.stationName || profileInfo.station_name || '';
+  document.getElementById('infoStation').oninput = e => state.stationName = e.target.value;
+  document.getElementById('infoPompiste').value = state.pompisteName || profileInfo.full_name || '';
+  document.getElementById('infoPompiste').oninput = e => state.pompisteName = e.target.value;
+  document.getElementById('infoPoste').value = state.posteNumber || '';
+  document.getElementById('infoPoste').oninput = e => state.posteNumber = e.target.value;
+  document.getElementById('infoIlot').value = state.ilotNumber || '';
+  document.getElementById('infoIlot').oninput = e => state.ilotNumber = e.target.value;
+
   document.getElementById('ouvPumpCards').innerHTML = FUEL_TYPES.map(f => {
     const pumpsForFuel = state.pumps.filter(p => p.fuel === f.key);
     return `
@@ -590,6 +627,13 @@ function removePump(id){ state.pumps = state.pumps.filter(p => p.id !== id); ren
 async function openShift(){
   state.status = 'open';
   state.openedAt = new Date().toISOString();
+  try{
+    await sb.from('profiles').upsert({
+      id: currentUser.id,
+      full_name: state.pompisteName || profileInfo.full_name,
+      station_name: state.stationName || profileInfo.station_name
+    });
+  }catch(e){ console.warn('Synchronisation du profil impossible :', e.message); }
   const ok = await persist();
   const msg = document.getElementById('ouvStatusMsg');
   if(ok){ routeToStage(); }
@@ -785,6 +829,11 @@ function computePayTotals(versements){
 }
 
 function computeAndShowSituation(readOnly){
+  document.getElementById('situInfoBox').innerHTML = `
+    <div class="summary-line"><span>Station</span><span class="v">${state.stationName || '—'}</span></div>
+    <div class="summary-line"><span>Pompiste</span><span class="v">${state.pompisteName || '—'}</span></div>
+    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${state.posteNumber || '—'} / ${state.ilotNumber || '—'}</span></div>
+    <div class="summary-line"><span>Date</span><span class="v">${new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span></div>`;
   const fuelSales = computeFuelSales();
   const gazSales = computeGazSales();
   const totalFuel = fuelSales.reduce((s,f)=>s+f.montant,0);
@@ -831,8 +880,11 @@ function shareWhatsApp(){
   const s = window._lastSituation;
   if(!s) return;
   const dateStr = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-  let msg = `*Situation du ${dateStr}*\n\n`;
-  msg += `*Carburants*\n`;
+  let msg = `*Situation du ${dateStr}*\n`;
+  if(state.stationName) msg += `Station : ${state.stationName}\n`;
+  if(state.pompisteName) msg += `Pompiste : ${state.pompisteName}\n`;
+  if(state.posteNumber || state.ilotNumber) msg += `Poste ${state.posteNumber || '—'} / Îlot ${state.ilotNumber || '—'}\n`;
+  msg += `\n*Carburants*\n`;
   s.fuelSales.forEach(f => { if(f.qty > 0) msg += `${f.label}: ${f.qty.toFixed(1)} L — ${fmt(f.montant)} F\n`; });
   msg += `\n*Gaz*\n`;
   s.gazSales.forEach(g => { if(g.recharges > 0 || g.consignes > 0) msg += `${g.label}: ${g.recharges} rech. / ${g.consignes} cons. — ${fmt(g.montant)} F\n`; });
@@ -941,6 +993,10 @@ function openHistoryDetail(dateStr){
   const t = shiftTotals(d);
   const dObj = new Date(dateStr + 'T00:00:00');
   const ok = t.ecart >= 0;
+  document.getElementById('detailInfoBox').innerHTML = `
+    <div class="summary-line"><span>Station</span><span class="v">${d.stationName || '—'}</span></div>
+    <div class="summary-line"><span>Pompiste</span><span class="v">${d.pompisteName || '—'}</span></div>
+    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>`;
   document.getElementById('detailBox').innerHTML = `
     <div class="situation-box ${ok?'ok':'bad'}">
       <div class="tag">${dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'})}</div>
@@ -962,4 +1018,4 @@ function openHistoryDetail(dateStr){
 }
 </script>
 </body>
-  </html>
+</html>

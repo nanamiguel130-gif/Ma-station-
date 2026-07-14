@@ -317,6 +317,12 @@
     <div class="panel"><h2>Versements par moyen</h2><div id="sumPay"></div></div>
     <div class="panel"><h2>Dépenses</h2><div id="sumDepenses"></div></div>
     <div class="panel"><h2>Récapitulatif</h2><div id="sumFinal"></div></div>
+    <div class="panel" id="signaturePanel">
+      <h2>Signature du pompiste</h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">En tapant votre nom, vous certifiez l'exactitude des informations ci-dessus.</p>
+      <input class="note-input" id="signatureInput" placeholder="Tapez votre nom complet pour signer">
+      <div class="status-msg" id="signatureMsg"></div>
+    </div>
     <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
     <button class="save-btn ghost" onclick="shareWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,.35)">📲 Partager via WhatsApp</button>
     <button class="save-btn ghost" id="backToVersementBtn" onclick="backToVersementFromSituation()">← Ajouter un versement oublié</button>
@@ -355,7 +361,7 @@
   <button class="tab" data-tab="historique" onclick="switchTab('historique')"><span class="ic">📅</span>Historique</button>
 </nav>
 
-</div><script>
+      </div><script>
 // ============================================================
 // CONFIGURATION SUPABASE
 // ============================================================
@@ -456,7 +462,7 @@ function defaultState(){
       { id: uid(), fuel:'gazole',  label:'Gazole 1',  ouv:'', ferm:'' },
       { id: uid(), fuel:'petrole', label:'Pétrole 1', ouv:'', ferm:'' },
     ],
-    fuelPrices, gaz, versements: [], depenses: [],
+    fuelPrices, gaz, versements: [], depenses: [], signature: '',
   };
 }
 
@@ -496,6 +502,7 @@ async function loadTodayShift(){
       state.pompisteName = saved.pompisteName || '';
       state.posteNumber = saved.posteNumber || '';
       state.ilotNumber = saved.ilotNumber || '';
+      state.signature = saved.signature || '';
       state.fuelPrices = Object.assign(def.fuelPrices, saved.fuelPrices || {});
       BOTTLES.forEach(b => state.gaz[b.key] = Object.assign(def.gaz[b.key], saved.gaz?.[b.key] || {}));
     } else {
@@ -871,6 +878,26 @@ function computeAndShowSituation(readOnly){
   document.getElementById('closeShiftBtn').classList.toggle('hidden', !!readOnly);
   document.getElementById('backToVersementBtn').classList.toggle('hidden', !!readOnly);
   document.getElementById('backToClotureBtn').classList.toggle('hidden', !!readOnly);
+  if(readOnly){
+    document.getElementById('signaturePanel').classList.remove('hidden');
+    document.getElementById('signatureInput').style.display = 'none';
+    document.querySelector('#signaturePanel p').classList.add('hidden');
+    let confirmEl = document.getElementById('signatureConfirmed');
+    if(!confirmEl){
+      confirmEl = document.createElement('div');
+      confirmEl.id = 'signatureConfirmed';
+      confirmEl.style.cssText = 'font-size:14px;font-weight:700;color:var(--good);';
+      document.getElementById('signaturePanel').appendChild(confirmEl);
+    }
+    confirmEl.textContent = '✓ Signé par ' + (state.signature || '—');
+  } else {
+    document.getElementById('signaturePanel').classList.remove('hidden');
+    document.getElementById('signatureInput').style.display = '';
+    document.querySelector('#signaturePanel p').classList.remove('hidden');
+    const confirmEl = document.getElementById('signatureConfirmed');
+    if(confirmEl) confirmEl.remove();
+    document.getElementById('signatureInput').value = state.signature || state.pompisteName || '';
+  }
   showStage('situation');
 
   window._lastSituation = { fuelSales, gazSales, totalFuel, totalGaz, totalCA, pay, totalEncaisse, totalCredit, totalDepenses, totalRecu, ecart };
@@ -893,12 +920,21 @@ function shareWhatsApp(){
   if(s.totalDepenses > 0) msg += `\n*Dépenses:* -${fmt(s.totalDepenses)} F\n`;
   msg += `\n*Vendu théorique:* ${fmt(s.totalCA)} F\n`;
   msg += `*Reçu total:* ${fmt(s.totalRecu)} F\n`;
-  msg += `*Écart:* ${s.ecart > 0 ? '+' : ''}${fmt(s.ecart)} F ${s.ecart < 0 ? '(manquant)' : (s.ecart > 0 ? '(excédent)' : '(caisse juste)')}`;
+  msg += `*Écart:* ${s.ecart > 0 ? '+' : ''}${fmt(s.ecart)} F ${s.ecart < 0 ? '(manquant)' : (s.ecart > 0 ? '(excédent)' : '(caisse juste)')}\n`;
+  msg += `\n_Signé par ${state.signature || state.pompisteName || '—'}_`;
   const url = 'https://wa.me/?text=' + encodeURIComponent(msg);
   window.open(url, '_blank');
 }
 
 async function closeShift(){
+  const sig = document.getElementById('signatureInput').value.trim();
+  if(!sig){
+    document.getElementById('signatureMsg').textContent = 'Veuillez taper votre nom pour signer avant de clôturer.';
+    document.getElementById('signatureMsg').style.color = 'var(--bad)';
+    document.getElementById('signatureInput').focus();
+    return;
+  }
+  state.signature = sig;
   state.status = 'closed';
   state.closedAt = new Date().toISOString();
   reviewMode = false;
@@ -996,7 +1032,8 @@ function openHistoryDetail(dateStr){
   document.getElementById('detailInfoBox').innerHTML = `
     <div class="summary-line"><span>Station</span><span class="v">${d.stationName || '—'}</span></div>
     <div class="summary-line"><span>Pompiste</span><span class="v">${d.pompisteName || '—'}</span></div>
-    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>`;
+    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>
+    <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
   document.getElementById('detailBox').innerHTML = `
     <div class="situation-box ${ok?'ok':'bad'}">
       <div class="tag">${dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'})}</div>
@@ -1018,4 +1055,4 @@ function openHistoryDetail(dateStr){
 }
 </script>
 </body>
-</html>
+  </html>

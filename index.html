@@ -210,7 +210,7 @@
   </div>
 </div>
 
-<!-- ============== APP ============== -->
+<!-- ============== APP POMPISTE ============== -->
 <div id="appRoot" class="hidden">
 <header class="top">
   <div class="brand">
@@ -361,7 +361,56 @@
   <button class="tab" data-tab="historique" onclick="switchTab('historique')"><span class="ic">📅</span>Historique</button>
 </nav>
 
-      </div><script>
+</div>
+
+<!-- ============== APP SUPERVISEUR ============== -->
+<div id="supervisorRoot" class="hidden">
+<header class="top">
+  <div class="brand">
+    <img src="fichier_00000000c0e871f4ac5a2f1708c3fec5.png" alt="Ma Station Service">
+    <span class="user-chip mono" onclick="signOut()">⎋ Déconnexion</span>
+  </div>
+  <div class="status-line" id="supStationLine">Superviseur</div>
+</header>
+
+<main>
+  <section class="view active" id="view-sup-station-setup">
+    <div class="lead">
+      <div class="ic">🏢</div>
+      <h1>Configuration</h1>
+      <p>Renseignez le nom exact de la station à superviser — identique à celui utilisé par vos pompistes.</p>
+    </div>
+    <div class="panel">
+      <input class="note-input" id="supStationInput" placeholder="Nom de la station">
+      <button class="save-btn" onclick="saveSupervisorStation()">✓ Enregistrer</button>
+      <div class="status-msg" id="supSetupMsg"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-sup-list">
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">👥</div>
+      <h1>Pompistes — <span id="supStationName"></span></h1>
+      <p>Situation du jour, par pompiste. Touchez un nom pour voir le détail.</p>
+    </div>
+    <div class="panel">
+      <h2>Aujourd'hui <button class="addbtn" onclick="loadSupervisorPompistes()">↻ Actualiser</button></h2>
+      <div id="supPompisteList"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-sup-detail">
+    <div class="back-link" onclick="showSupStage('list')">← Retour à la liste</div>
+    <div class="panel" id="supDetailInfoBox"></div>
+    <div id="supDetailBox"></div>
+    <div class="panel"><h2>Ventes carburants</h2><div id="supDetailFuels"></div></div>
+    <div class="panel"><h2>Ventes gaz</h2><div id="supDetailGaz"></div></div>
+    <div class="panel"><h2>Versements par moyen</h2><div id="supDetailPay"></div></div>
+    <div class="panel"><h2>Dépenses</h2><div id="supDetailDepenses"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="supDetailFinal"></div></div>
+  </section>
+</main>
+        </div><script>
 // ============================================================
 // CONFIGURATION SUPABASE
 // ============================================================
@@ -411,12 +460,11 @@ sb.auth.onAuthStateChange((event, session) => {
   if(session && session.user){
     currentUser = session.user;
     document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('appRoot').classList.remove('hidden');
-    document.getElementById('userChip').textContent = '⎋ ' + (session.user.email || 'Déconnexion');
     initApp();
   } else {
     currentUser = null;
     document.getElementById('appRoot').classList.add('hidden');
+    document.getElementById('supervisorRoot').classList.add('hidden');
     document.getElementById('authScreen').classList.remove('hidden');
   }
 });
@@ -471,16 +519,22 @@ let currentVType = 'especes';
 let currentStage = 'ouverture'; // ouverture | service | cloture | situation | historique | detail
 let historyCache = [];
 let reviewMode = false;
-let profileInfo = { full_name: '', station_name: '' };
+let profileInfo = { full_name: '', station_name: '', role: 'pompiste' };
 
 async function initApp(){
   await loadProfile();
-  await loadTodayShift();
+  if(profileInfo.role === 'superviseur'){
+    initSupervisor();
+  } else {
+    document.getElementById('appRoot').classList.remove('hidden');
+    document.getElementById('userChip').textContent = '⎋ ' + (currentUser.email || 'Déconnexion');
+    await loadTodayShift();
+  }
 }
 async function loadProfile(){
   try{
-    const { data, error } = await sb.from('profiles').select('full_name,station_name').eq('id', currentUser.id).maybeSingle();
-    if(!error && data){ profileInfo = { full_name: data.full_name || '', station_name: data.station_name || '' }; }
+    const { data, error } = await sb.from('profiles').select('full_name,station_name,role').eq('id', currentUser.id).maybeSingle();
+    if(!error && data){ profileInfo = { full_name: data.full_name || '', station_name: data.station_name || '', role: data.role || 'pompiste' }; }
   }catch(e){ console.warn('Profil indisponible :', e.message); }
 }
 
@@ -555,7 +609,7 @@ function updateStatusHeader(){
 }
 function showStage(stage){
   currentStage = stage;
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('#appRoot .view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + stage).classList.add('active');
 }
 function switchTab(tab){
@@ -1053,6 +1107,111 @@ function openHistoryDetail(dateStr){
     <div class="summary-line total"><span>Reçu total</span><span class="v">${fmt(t.totalRecu)} F</span></div>`;
   showStage('detail');
 }
+
+// ============================================================
+// ESPACE SUPERVISEUR
+// ============================================================
+function showSupStage(stage){
+  document.querySelectorAll('#supervisorRoot .view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-sup-' + stage).classList.add('active');
+}
+async function initSupervisor(){
+  document.getElementById('appRoot').classList.add('hidden');
+  document.getElementById('supervisorRoot').classList.remove('hidden');
+  if(!profileInfo.station_name){
+    showSupStage('station-setup');
+  } else {
+    document.getElementById('supStationName').textContent = profileInfo.station_name;
+    document.getElementById('supStationLine').textContent = 'Superviseur — ' + profileInfo.station_name;
+    showSupStage('list');
+    await loadSupervisorPompistes();
+  }
+}
+async function saveSupervisorStation(){
+  const val = document.getElementById('supStationInput').value.trim();
+  const msg = document.getElementById('supSetupMsg');
+  if(!val){ msg.textContent = 'Indiquez le nom de la station.'; msg.style.color = 'var(--bad)'; return; }
+  try{
+    const { error } = await sb.from('profiles').upsert({ id: currentUser.id, station_name: val, role: 'superviseur' });
+    if(error) throw error;
+    profileInfo.station_name = val;
+    document.getElementById('supStationName').textContent = val;
+    document.getElementById('supStationLine').textContent = 'Superviseur — ' + val;
+    showSupStage('list');
+    await loadSupervisorPompistes();
+  }catch(e){ msg.textContent = 'Erreur : ' + e.message; msg.style.color = 'var(--bad)'; }
+}
+async function loadSupervisorPompistes(){
+  const box = document.getElementById('supPompisteList');
+  box.innerHTML = '<div class="empty">Chargement…</div>';
+  try{
+    const { data: pompistes, error } = await sb.from('profiles')
+      .select('id,full_name')
+      .eq('station_name', profileInfo.station_name)
+      .eq('role', 'pompiste');
+    if(error) throw error;
+    if(!pompistes || !pompistes.length){ box.innerHTML = '<div class="empty">Aucun pompiste trouvé pour cette station pour l’instant.</div>'; return; }
+    const today = todayDate();
+    const rows = [];
+    for(const p of pompistes){
+      const { data: shift } = await sb.from('shifts').select('data').eq('user_id', p.id).eq('shift_date', today).maybeSingle();
+      rows.push({ profile: p, shift: shift ? shift.data : null });
+    }
+    box.innerHTML = rows.map(r => {
+      const st = r.shift ? r.shift.status : 'none';
+      const label = st === 'open' ? 'Poste ouvert' : st === 'closed' ? 'Poste clôturé' : 'Pas encore commencé';
+      const dotClass = st === 'open' ? 'open' : st === 'closed' ? 'closed' : 'none';
+      let ecartTxt = '';
+      if(st === 'closed'){
+        const t = shiftTotals(r.shift);
+        ecartTxt = ` · ${t.ecart>0?'+':''}${fmt(t.ecart)} F`;
+      }
+      return `
+      <div class="hist-item" onclick="openSupervisorDetail('${p.id}')">
+        <div class="hd">
+          <div class="date">${r.profile.full_name || 'Sans nom'}</div>
+          <div class="sub"><span class="status-dot ${dotClass}" style="display:inline-block;margin-right:4px"></span>${label}${ecartTxt}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">Erreur de chargement : ' + e.message + '</div>';
+  }
+}
+async function openSupervisorDetail(pompisteId){
+  const { data, error } = await sb.from('shifts').select('data').eq('user_id', pompisteId).eq('shift_date', todayDate()).maybeSingle();
+  const { data: profRow } = await sb.from('profiles').select('full_name').eq('id', pompisteId).maybeSingle();
+  if(error || !data || !data.data || data.data.status === 'none'){
+    alert("Ce pompiste n'a pas encore ouvert son poste aujourd'hui.");
+    return;
+  }
+  const d = data.data;
+  const t = shiftTotals(d);
+  const ok = t.ecart >= 0;
+  document.getElementById('supDetailInfoBox').innerHTML = `
+    <div class="summary-line"><span>Pompiste</span><span class="v">${profRow?.full_name || '—'}</span></div>
+    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>
+    <div class="summary-line"><span>Statut</span><span class="v">${d.status === 'closed' ? 'Clôturé' : 'En cours'}</span></div>
+    <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
+  document.getElementById('supDetailBox').innerHTML = `
+    <div class="situation-box ${ok?'ok':'bad'}">
+      <div class="tag">${new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
+      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
+      <div class="hint">Reçu (${fmt(t.totalRecu)}) − Vendu (${fmt(t.totalCA)})</div>
+    </div>`;
+  document.getElementById('supDetailFuels').innerHTML = t.fuelSales.map(f => `
+    <div class="summary-line"><span>${f.label} <span style="color:var(--muted)">— ${f.qty.toFixed(1)} L</span></span><span class="v">${fmt(f.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('supDetailGaz').innerHTML = t.gazSales.map(g => `
+    <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('supDetailPay').innerHTML = VTYPES.map(v => `
+    <div class="summary-line"><span>${v.ic} ${v.label}</span><span class="v">${fmt(t.pay[v.key])}</span></div>`).join('');
+  document.getElementById('supDetailDepenses').innerHTML = (d.depenses || []).map(dep => `
+    <div class="summary-line"><span>${dep.motif}</span><span class="v">-${fmt(dep.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
+  document.getElementById('supDetailFinal').innerHTML = `
+    <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(t.totalCA)} F</span></div>
+    <div class="summary-line total"><span>Reçu total</span><span class="v">${fmt(t.totalRecu)} F</span></div>`;
+  showSupStage('detail');
+}
 </script>
 </body>
-  </html>
+</html>

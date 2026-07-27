@@ -232,7 +232,8 @@
     </div>
     <div class="panel">
       <h2>Informations du poste</h2>
-      <input class="note-input" id="infoStation" placeholder="Nom de la station (ex: Total Baffia)">
+      <select class="note-input" id="infoStation"></select>
+      <input class="note-input hidden" id="infoStationNew" placeholder="Nom de la nouvelle station">
       <input class="note-input" id="infoPompiste" placeholder="Votre nom">
       <div class="stock-row">
         <div class="field"><span class="field-label">Numéro du poste</span><input class="note-input" style="margin-bottom:0" id="infoPoste" placeholder="Ex: 2"></div>
@@ -350,6 +351,7 @@
     <div class="panel"><h2>Ventes carburants</h2><div id="detailFuels"></div></div>
     <div class="panel"><h2>Ventes gaz</h2><div id="detailGaz"></div></div>
     <div class="panel"><h2>Versements par moyen</h2><div id="detailPay"></div></div>
+    <div class="panel"><h2>Détail des versements</h2><div id="detailVersementsList"></div></div>
     <div class="panel"><h2>Dépenses</h2><div id="detailDepenses"></div></div>
     <div class="panel"><h2>Récapitulatif</h2><div id="detailFinal"></div></div>
   </section>
@@ -391,7 +393,7 @@
     <div class="lead" style="padding:18px 16px;">
       <div class="ic">👥</div>
       <h1>Pompistes — <span id="supStationName"></span></h1>
-      <p>Situation du jour, par pompiste. Touchez un nom pour voir le détail.</p>
+      <p>Situation du jour, par pompiste. Touchez un nom pour voir le détail, ou "Historique" pour les journées passées.</p>
     </div>
     <div class="panel">
       <h2>Aujourd'hui <button class="addbtn" onclick="loadSupervisorPompistes()">↻ Actualiser</button></h2>
@@ -399,18 +401,31 @@
     </div>
   </section>
 
-  <section class="view" id="view-sup-detail">
+  <section class="view" id="view-sup-history">
     <div class="back-link" onclick="showSupStage('list')">← Retour à la liste</div>
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">📅</div>
+      <h1 id="supHistoryTitle">Historique</h1>
+      <p>Journées clôturées, les plus récentes en premier.</p>
+    </div>
+    <div class="panel">
+      <div id="supHistoryList"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-sup-detail">
+    <div class="back-link" id="supDetailBackLink" onclick="showSupStage('list')">← Retour à la liste</div>
     <div class="panel" id="supDetailInfoBox"></div>
     <div id="supDetailBox"></div>
     <div class="panel"><h2>Ventes carburants</h2><div id="supDetailFuels"></div></div>
     <div class="panel"><h2>Ventes gaz</h2><div id="supDetailGaz"></div></div>
     <div class="panel"><h2>Versements par moyen</h2><div id="supDetailPay"></div></div>
+    <div class="panel"><h2>Détail des versements</h2><div id="supDetailVersementsList"></div></div>
     <div class="panel"><h2>Dépenses</h2><div id="supDetailDepenses"></div></div>
     <div class="panel"><h2>Récapitulatif</h2><div id="supDetailFinal"></div></div>
   </section>
 </main>
-        </div><script>
+</div><script>
 // ============================================================
 // CONFIGURATION SUPABASE
 // ============================================================
@@ -528,13 +543,23 @@ async function initApp(){
   } else {
     document.getElementById('appRoot').classList.remove('hidden');
     document.getElementById('userChip').textContent = '⎋ ' + (currentUser.email || 'Déconnexion');
+    await loadStationOptions();
     await loadTodayShift();
   }
 }
+let stationOptions = [];
+async function loadStationOptions(){
+  try{
+    const { data, error } = await sb.from('profiles').select('station_name').not('station_name', 'is', null).neq('station_name', '');
+    if(!error && data){
+      stationOptions = [...new Set(data.map(r => r.station_name).filter(Boolean))].sort();
+    }
+  }catch(e){ console.warn('Liste des stations indisponible :', e.message); }
+}
 async function loadProfile(){
   try{
-    const { data, error } = await sb.from('profiles').select('full_name,station_name,role').eq('id', currentUser.id).maybeSingle();
-    if(!error && data){ profileInfo = { full_name: data.full_name || '', station_name: data.station_name || '', role: data.role || 'pompiste' }; }
+    const { data, error } = await sb.from('profiles').select('full_name,station_name,role,poste_number,ilot_number').eq('id', currentUser.id).maybeSingle();
+    if(!error && data){ profileInfo = { full_name: data.full_name || '', station_name: data.station_name || '', role: data.role || 'pompiste', poste_number: data.poste_number || '', ilot_number: data.ilot_number || '' }; }
   }catch(e){ console.warn('Profil indisponible :', e.message); }
 }
 
@@ -623,13 +648,40 @@ function switchTab(tab){
 // OUVERTURE DU POSTE
 // ============================================================
 function renderOuverture(){
-  document.getElementById('infoStation').value = state.stationName || profileInfo.station_name || '';
-  document.getElementById('infoStation').oninput = e => state.stationName = e.target.value;
+  const currentStation = state.stationName || profileInfo.station_name || '';
+  const stationSelect = document.getElementById('infoStation');
+  const stationNewInput = document.getElementById('infoStationNew');
+  stationSelect.innerHTML = '<option value="">— Choisir une station —</option>'
+    + stationOptions.map(s => `<option value="${s}">${s}</option>`).join('')
+    + '<option value="__new__">➕ Nouvelle station...</option>';
+  if(currentStation && stationOptions.includes(currentStation)){
+    stationSelect.value = currentStation;
+    stationNewInput.classList.add('hidden');
+  } else if(currentStation){
+    stationSelect.value = '__new__';
+    stationNewInput.value = currentStation;
+    stationNewInput.classList.remove('hidden');
+  } else {
+    stationNewInput.classList.add('hidden');
+  }
+  stationSelect.onchange = e => {
+    if(e.target.value === '__new__'){
+      stationNewInput.classList.remove('hidden');
+      stationNewInput.value = '';
+      stationNewInput.focus();
+      state.stationName = '';
+    } else {
+      stationNewInput.classList.add('hidden');
+      state.stationName = e.target.value;
+    }
+  };
+  stationNewInput.oninput = e => state.stationName = e.target.value;
+
   document.getElementById('infoPompiste').value = state.pompisteName || profileInfo.full_name || '';
   document.getElementById('infoPompiste').oninput = e => state.pompisteName = e.target.value;
-  document.getElementById('infoPoste').value = state.posteNumber || '';
+  document.getElementById('infoPoste').value = state.posteNumber || profileInfo.poste_number || '';
   document.getElementById('infoPoste').oninput = e => state.posteNumber = e.target.value;
-  document.getElementById('infoIlot').value = state.ilotNumber || '';
+  document.getElementById('infoIlot').value = state.ilotNumber || profileInfo.ilot_number || '';
   document.getElementById('infoIlot').oninput = e => state.ilotNumber = e.target.value;
 
   document.getElementById('ouvPumpCards').innerHTML = FUEL_TYPES.map(f => {
@@ -686,13 +738,20 @@ function addPump(fuelKey){
 function removePump(id){ state.pumps = state.pumps.filter(p => p.id !== id); renderOuverture(); }
 
 async function openShift(){
+  if(!state.stationName || !state.stationName.trim()){
+    document.getElementById('ouvStatusMsg').textContent = 'Veuillez choisir ou saisir le nom de la station.';
+    document.getElementById('ouvStatusMsg').style.color = 'var(--bad)';
+    return;
+  }
   state.status = 'open';
   state.openedAt = new Date().toISOString();
   try{
     await sb.from('profiles').upsert({
       id: currentUser.id,
       full_name: state.pompisteName || profileInfo.full_name,
-      station_name: state.stationName || profileInfo.station_name
+      station_name: state.stationName || profileInfo.station_name,
+      poste_number: state.posteNumber || profileInfo.poste_number,
+      ilot_number: state.ilotNumber || profileInfo.ilot_number
     });
   }catch(e){ console.warn('Synchronisation du profil impossible :', e.message); }
   const ok = await persist();
@@ -862,6 +921,21 @@ function goToClosing(){
 // ============================================================
 // CALCULS
 // ============================================================
+function renderVersementsReadOnly(versements){
+  return (versements || []).slice().reverse().map(v => {
+    const meta = VTYPES.find(t => t.key === v.type) || { ic:'💳', label: v.type };
+    let sub = v.time || '';
+    if(v.detail) sub += ' · ' + Object.entries(v.detail).map(([d,c]) => `${c}×${d/1000}k`).join(', ');
+    if(v.note) sub += ' · ' + v.note;
+    return `
+    <div class="list-item ${v.type==='credit'?'credit':''}">
+      <span class="ic">${meta.ic}</span>
+      <div class="info"><div class="t">${meta.label}</div><div class="s">${sub}</div></div>
+      <span class="amt">${fmt(v.montant)}</span>
+    </div>`;
+  }).join('') || '<div class="empty">Aucun versement enregistré</div>';
+}
+
 function computeFuelSales(){
   const byFuel = {};
   FUEL_TYPES.forEach(f => byFuel[f.key] = { ...f, qty:0, montant:0 });
@@ -1100,6 +1174,7 @@ function openHistoryDetail(dateStr){
     <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
   document.getElementById('detailPay').innerHTML = VTYPES.map(v => `
     <div class="summary-line"><span>${v.ic} ${v.label}</span><span class="v">${fmt(t.pay[v.key])}</span></div>`).join('');
+  document.getElementById('detailVersementsList').innerHTML = renderVersementsReadOnly(d.versements);
   document.getElementById('detailDepenses').innerHTML = (d.depenses || []).map(dep => `
     <div class="summary-line"><span>${dep.motif}</span><span class="v">-${fmt(dep.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
   document.getElementById('detailFinal').innerHTML = `
@@ -1167,11 +1242,12 @@ async function loadSupervisorPompistes(){
         ecartTxt = ` · ${t.ecart>0?'+':''}${fmt(t.ecart)} F`;
       }
       return `
-      <div class="hist-item" onclick="openSupervisorDetail('${p.id}')">
-        <div class="hd">
+      <div class="hist-item" style="cursor:default">
+        <div class="hd" onclick="openSupervisorDetail('${r.profile.id}')" style="cursor:pointer">
           <div class="date">${r.profile.full_name || 'Sans nom'}</div>
           <div class="sub"><span class="status-dot ${dotClass}" style="display:inline-block;margin-right:4px"></span>${label}${ecartTxt}</div>
         </div>
+        <button class="del" onclick="openSupervisorHistory('${r.profile.id}','${(r.profile.full_name || 'Sans nom').replace(/'/g,"\\'")}')" style="font-size:11px;white-space:nowrap;color:var(--amber)">📅 Historique</button>
       </div>`;
     }).join('');
   }catch(e){
@@ -1185,17 +1261,63 @@ async function openSupervisorDetail(pompisteId){
     alert("Ce pompiste n'a pas encore ouvert son poste aujourd'hui.");
     return;
   }
-  const d = data.data;
+  renderSupervisorDay(profRow?.full_name || '—', data.data, new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'}));
+  document.getElementById('supDetailBackLink').setAttribute('onclick', "showSupStage('list')");
+  document.getElementById('supDetailBackLink').textContent = '← Retour à la liste';
+  showSupStage('detail');
+}
+
+let supHistoryCache = [];
+async function openSupervisorHistory(pompisteId, pompisteName){
+  document.getElementById('supHistoryTitle').textContent = 'Historique — ' + pompisteName;
+  const box = document.getElementById('supHistoryList');
+  box.innerHTML = '<div class="empty">Chargement…</div>';
+  showSupStage('history');
+  try{
+    const { data, error } = await sb.from('shifts')
+      .select('shift_date,data')
+      .eq('user_id', pompisteId)
+      .order('shift_date', { ascending:false })
+      .limit(90);
+    if(error) throw error;
+    supHistoryCache = (data || []).filter(r => r.data && r.data.status === 'closed');
+    if(!supHistoryCache.length){ box.innerHTML = '<div class="empty">Aucune journée clôturée pour ce pompiste.</div>'; return; }
+    box.innerHTML = supHistoryCache.map(r => {
+      const t = shiftTotals(r.data);
+      const d = new Date(r.shift_date + 'T00:00:00');
+      return `
+      <div class="hist-item" onclick="openSupervisorDayDetail('${r.shift_date}','${pompisteName.replace(/'/g,"\\'")}')">
+        <div class="hd">
+          <div class="date">${d.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
+          <div class="sub">Vendu ${fmt(t.totalCA)} F · Reçu ${fmt(t.totalRecu)} F</div>
+        </div>
+        <div class="he ${t.ecart<0?'bad':'good'}">${t.ecart>0?'+':''}${fmt(t.ecart)}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">Erreur de chargement : ' + e.message + '</div>';
+  }
+}
+function openSupervisorDayDetail(dateStr, pompisteName){
+  const row = supHistoryCache.find(r => r.shift_date === dateStr);
+  if(!row) return;
+  const dObj = new Date(dateStr + 'T00:00:00');
+  renderSupervisorDay(pompisteName, row.data, dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}));
+  document.getElementById('supDetailBackLink').setAttribute('onclick', "showSupStage('history')");
+  document.getElementById('supDetailBackLink').textContent = '← Retour à l\'historique';
+  showSupStage('detail');
+}
+function renderSupervisorDay(pompisteName, d, dateLabel){
   const t = shiftTotals(d);
   const ok = t.ecart >= 0;
   document.getElementById('supDetailInfoBox').innerHTML = `
-    <div class="summary-line"><span>Pompiste</span><span class="v">${profRow?.full_name || '—'}</span></div>
+    <div class="summary-line"><span>Pompiste</span><span class="v">${pompisteName || '—'}</span></div>
     <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>
     <div class="summary-line"><span>Statut</span><span class="v">${d.status === 'closed' ? 'Clôturé' : 'En cours'}</span></div>
     <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
   document.getElementById('supDetailBox').innerHTML = `
     <div class="situation-box ${ok?'ok':'bad'}">
-      <div class="tag">${new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
+      <div class="tag">${dateLabel}</div>
       <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
       <div class="hint">Reçu (${fmt(t.totalRecu)}) − Vendu (${fmt(t.totalCA)})</div>
     </div>`;
@@ -1205,6 +1327,7 @@ async function openSupervisorDetail(pompisteId){
     <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
   document.getElementById('supDetailPay').innerHTML = VTYPES.map(v => `
     <div class="summary-line"><span>${v.ic} ${v.label}</span><span class="v">${fmt(t.pay[v.key])}</span></div>`).join('');
+  document.getElementById('supDetailVersementsList').innerHTML = renderVersementsReadOnly(d.versements);
   document.getElementById('supDetailDepenses').innerHTML = (d.depenses || []).map(dep => `
     <div class="summary-line"><span>${dep.motif}</span><span class="v">-${fmt(dep.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
   document.getElementById('supDetailFinal').innerHTML = `
@@ -1214,4 +1337,4 @@ async function openSupervisorDetail(pompisteId){
 }
 </script>
 </body>
-</html>
+  </html>

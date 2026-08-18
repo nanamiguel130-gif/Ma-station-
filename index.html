@@ -1337,4 +1337,667 @@ function renderSupervisorDay(pompisteName, d, dateLabel){
 }
 </script>
 </body>
-  </html>
+  </html>// ============================================================
+// ESPACE SUPERVISEUR
+// ============================================================
+function showSupStage(stage){
+  document.querySelectorAll('#supervisorRoot .view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-sup-' + stage).classList.add('active');
+}
+async function initSupervisor(){
+  document.getElementById('appRoot').classList.add('hidden');
+  document.getElementById('supervisorRoot').classList.remove('hidden');
+  if(!profileInfo.station_name){
+    showSupStage('station-setup');
+  } else {
+    document.getElementById('supStationName').textContent = profileInfo.station_name;
+    document.getElementById('supStationLine').textContent = 'Superviseur — ' + profileInfo.station_name;
+    showSupStage('list');
+    await loadSupervisorPompistes();
+  }
+}
+async function saveSupervisorStation(){
+  const val = document.getElementById('supStationInput').value.trim();
+  const msg = document.getElementById('supSetupMsg');
+  if(!val){ msg.textContent = 'Indiquez le nom de la station.'; msg.style.color = 'var(--bad)'; return; }
+  try{
+    const { error } = await sb.from('profiles').upsert({ id: currentUser.id, station_name: val, role: 'superviseur' });
+    if(error) throw error;
+    profileInfo.station_name = val;
+    document.getElementById('supStationName').textContent = val;
+    document.getElementById('supStationLine').textContent = 'Superviseur — ' + val;
+    showSupStage('list');
+    await loadSupervisorPompistes();
+  }catch(e){ msg.textContent = 'Erreur : ' + e.message; msg.style.color = 'var(--bad)'; }
+}
+async function loadSupervisorPompistes(){
+  const box = document.getElementById('supPompisteList');
+  box.innerHTML = '<div class="empty">Chargement…</div>';
+  try{
+    const { data: pompistes, error } = await sb.from('profiles')
+      .select('id,full_name')
+      .eq('station_name', profileInfo.station_name)
+      .eq('role', 'pompiste');
+    if(error) throw error;
+    if(!pompistes || !pompistes.length){ box.innerHTML = '<div class="empty">Aucun pompiste trouvé pour cette station pour l’instant.</div>'; return; }
+    const today = todayDate();
+    const rows = [];
+    for(const p of pompistes){
+      const { data: shift } = await sb.from('shifts').select('data').eq('user_id', p.id).eq('shift_date', today).maybeSingle();
+      rows.push({ profile: p, shift: shift ? shift.data : null });
+    }
+    box.innerHTML = rows.map(r => {
+      const st = r.shift ? r.shift.status : 'none';
+      const label = st === 'open' ? 'Poste ouvert' : st === 'closed' ? 'Poste clôturé' : 'Pas encore commencé';
+      const dotClass = st === 'open' ? 'open' : st === 'closed' ? 'closed' : 'none';
+      let ecartTxt = '';
+      if(st === 'closed'){
+        const t = shiftTotals(r.shift);
+        ecartTxt = ` · ${t.ecart>0?'+':''}${fmt(t.ecart)} F`;
+      }
+      return `
+      <div class="hist-item" style="cursor:default">
+        <div class="hd" onclick="openSupervisorDetail('${r.profile.id}')" style="cursor:pointer">
+          <div class="date">${r.profile.full_name || 'Sans nom'}</div>
+          <div class="sub"><span class="status-dot ${dotClass}" style="display:inline-block;margin-right:4px"></span>${label}${ecartTxt}</div>
+        </div>
+        <button class="del" onclick="openSupervisorHistory('${r.profile.id}','${(r.profile.full_name || 'Sans nom').replace(/'/g,"\\'")}')" style="font-size:11px;white-space:nowrap;color:var(--amber)">📅 Historique</button>
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">Erreur de chargement : ' + e.message + '</div>';
+  }
+}
+async function openSupervisorDetail(pompisteId){
+  const { data, error } = await sb.from('shifts').select('data').eq('user_id', pompisteId).eq('shift_date', todayDate()).maybeSingle();
+  const { data: profRow } = await sb.from('profiles').select('full_name').eq('id', pompisteId).maybeSingle();
+  if(error || !data || !data.data || data.data.status === 'none'){
+    alert("Ce pompiste n'a pas encore ouvert son poste aujourd'hui.");
+    return;
+  }
+  renderSupervisorDay(profRow?.full_name || '—', data.data, new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'}));
+  document.getElementById('supDetailBackLink').setAttribute('onclick', "showSupStage('list')");
+  document.getElementById('supDetailBackLink').textContent = '← Retour à la liste';
+  showSupStage('detail');
+}
+
+let supHistoryCache = [];
+async function openSupervisorHistory(pompisteId, pompisteName){
+  document.getElementById('supHistoryTitle').textContent = 'Historique — ' + pompisteName;
+  const box = document.getElementById('supHistoryList');
+  box.innerHTML = '<div class="empty">Chargement…</div>';
+  showSupStage('history');
+  try{
+    const { data, error } = await sb.from('shifts')
+      .select('shift_date,data')
+      .eq('user_id', pompisteId)
+      .order('shift_date', { ascending:false })
+      .limit(90);
+    if(error) throw error;
+    supHistoryCache = (data || []).filter(r => r.data && r.data.status === 'closed');
+    if(!supHistoryCache.length){ box.innerHTML = '<div class="empty">Aucune journée clôturée pour ce pompiste.</div>'; return; }
+    box.innerHTML = supHistoryCache.map(r => {
+      const t = shiftTotals(r.data);
+      const d = new Date(r.shift_date + 'T00:00:00');
+      return `
+      <div class="hist-item" onclick="openSupervisorDayDetail('${r.shift_date}','${pompisteName.replace(/'/g,"\\'")}')">
+        <div class="hd">
+          <div class="date">${d.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
+          <div class="sub">Vendu ${fmt(t.totalCA)} F · Reçu ${fmt(t.totalRecu)} F</div>
+        </div>
+        <div class="he ${t.ecart<0?'bad':'good'}">${t.ecart>0?'+':''}${fmt(t.ecart)}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">Erreur de chargement : ' + e.message + '</div>';
+  }
+}
+function openSupervisorDayDetail(dateStr, pompisteName){
+  const row = supHistoryCache.find(r => r.shift_date === dateStr);
+  if(!row) return;
+  const dObj = new Date(dateStr + 'T00:00:00');
+  renderSupervisorDay(pompisteName, row.data, dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}));
+  document.getElementById('supDetailBackLink').setAttribute('onclick', "showSupStage('history')");
+  document.getElementById('supDetailBackLink').textContent = '← Retour à l\'historique';
+  showSupStage('detail');
+}
+function renderSupervisorDay(pompisteName, d, dateLabel){
+  const t = shiftTotals(d);
+  const ok = t.ecart >= 0;
+  document.getElementById('supDetailInfoBox').innerHTML = `
+    <div class="summary-line"><span>Pompiste</span><span class="v">${pompisteName || '—'}</span></div>
+    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>
+    <div class="summary-line"><span>Statut</span><span class="v">${d.status === 'closed' ? 'Clôturé' : 'En cours'}</span></div>
+    <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
+  document.getElementById('supDetailBox').innerHTML = `
+    <div class="situation-box ${ok?'ok':'bad'}">
+      <div class="tag">${dateLabel}</div>
+      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
+      <div class="hint">Reçu (${fmt(t.totalRecu)}) − Vendu (${fmt(t.totalCA)})</div>
+    </div>`;
+  document.getElementById('supDetailFuels').innerHTML = t.fuelSales.map(f => `
+    <div class="summary-line"><span>${f.label} <span style="color:var(--muted)">— ${f.qty.toFixed(1)} L</span></span><span class="v">${fmt(f.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('supDetailGaz').innerHTML = t.gazSales.map(g => `
+    <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('supDetailPay').innerHTML = VTYPES.map(v => `
+    <div class="summary-line"><span>${v.ic} ${v.label}</span><span class="v">${fmt(t.pay[v.key])}</span></div>`).join('');
+  document.getElementById('supDetailVersementsList').innerHTML = renderVersementsReadOnly(d.versements);
+  document.getElementById('supDetailDepenses').innerHTML = (d.depenses || []).map(dep => `
+    <div class="summary-line"><span>${dep.motif}</span><span class="v">-${fmt(dep.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
+  document.getElementById('supDetailFinal').innerHTML = `
+    <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(t.totalCA)} F</span></div>
+    <div class="summary-line total"><span>Reçu total</span><span class="v">${fmt(t.totalRecu)} F</span></div>`;
+  showSupStage('detail');
+}
+
+// ============================================================
+// ESPACE BOUTIQUE
+// ============================================================
+const BOU_OPTYPES = [
+  { key:'depot',   label:'Dépôt',   ic:'⬇️' },
+  { key:'retrait', label:'Retrait', ic:'⬆️' },
+  { key:'vente',   label:'Vente',   ic:'🛒' },
+];
+let bouProducts = [];
+let bouState = defaultBoutiqueState();
+let currentBouOpType = 'depot';
+let currentBouStage = 'ouverture';
+let currentEditOpId = null;
+let currentEditProdId = null;
+let bouHistoryCache = [];
+
+function defaultBoutiqueState(){
+  return {
+    status: 'none', openedAt: null, closedAt: null,
+    stationName: '', hotesseName: '', signature: '',
+    fondsCaisse: '', montantCompte: '',
+    retraits: [], depots: [], ventes: [],
+  };
+}
+
+async function initBoutique(){
+  document.getElementById('appRoot').classList.add('hidden');
+  document.getElementById('supervisorRoot').classList.add('hidden');
+  document.getElementById('boutiqueRoot').classList.remove('hidden');
+  await loadBoutiqueProducts();
+  await loadStationOptions();
+  await loadTodayBoutiqueShift();
+}
+async function loadBoutiqueProducts(){
+  try{
+    const { data, error } = await sb.from('profiles').select('boutique_products').eq('id', currentUser.id).maybeSingle();
+    if(!error && data && Array.isArray(data.boutique_products)){ bouProducts = data.boutique_products; }
+  }catch(e){ console.warn('Catalogue indisponible :', e.message); }
+}
+async function persistBoutiqueProducts(){
+  try{ await sb.from('profiles').upsert({ id: currentUser.id, boutique_products: bouProducts }); }
+  catch(e){ console.warn('Sauvegarde catalogue impossible :', e.message); }
+}
+
+// ---------- Catalogue produits ----------
+function renderBoutiqueCatalogue(){
+  document.getElementById('bouProdCount').textContent = bouProducts.length ? `(${bouProducts.length})` : '';
+  document.getElementById('bouProdList').innerHTML = bouProducts.map(p => `
+    <div class="list-item">
+      <span class="ic">📦</span>
+      <div class="info"><div class="t">${p.name}</div><div class="s">${fmt(p.price)} FCFA / unité</div></div>
+      <button class="del" onclick="editBoutiqueProduct('${p.id}')" style="color:var(--amber)">✎</button>
+      <button class="del" onclick="removeBoutiqueProduct('${p.id}')">✕</button>
+    </div>`).join('') || '<div class="empty">Aucun produit enregistré — ajoutez-en un ci-dessus</div>';
+}
+async function addBoutiqueProduct(){
+  const name = document.getElementById('bouProdName').value.trim();
+  const price = num(document.getElementById('bouProdPrice').value);
+  if(!name){ alert('Indiquez le nom du produit.'); return; }
+  if(price <= 0){ alert('Indiquez un prix.'); return; }
+  if(currentEditProdId){
+    const p = bouProducts.find(p => p.id === currentEditProdId);
+    if(p){ p.name = name; p.price = price; }
+    cancelEditBoutiqueProduct();
+  } else {
+    bouProducts.push({ id: uid(), name, price });
+    document.getElementById('bouProdName').value = '';
+    document.getElementById('bouProdPrice').value = '';
+  }
+  renderBoutiqueCatalogue();
+  await persistBoutiqueProducts();
+}
+function editBoutiqueProduct(id){
+  const p = bouProducts.find(p => p.id === id);
+  if(!p) return;
+  currentEditProdId = id;
+  document.getElementById('bouProdName').value = p.name;
+  document.getElementById('bouProdPrice').value = p.price;
+  document.getElementById('bouAddProdBtn').textContent = '✓ Enregistrer la modification';
+  document.getElementById('bouCancelProdEditBtn').classList.remove('hidden');
+}
+function cancelEditBoutiqueProduct(){
+  currentEditProdId = null;
+  document.getElementById('bouProdName').value = '';
+  document.getElementById('bouProdPrice').value = '';
+  document.getElementById('bouAddProdBtn').textContent = '+ Ajouter au catalogue';
+  document.getElementById('bouCancelProdEditBtn').classList.add('hidden');
+}
+async function removeBoutiqueProduct(id){
+  if(!confirm('Supprimer ce produit du catalogue ?')) return;
+  bouProducts = bouProducts.filter(p => p.id !== id);
+  renderBoutiqueCatalogue();
+  await persistBoutiqueProducts();
+}
+
+// ---------- Navigation ----------
+function showBouStage(stage){
+  currentBouStage = stage;
+  document.querySelectorAll('#boutiqueRoot .view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-bou-' + stage).classList.add('active');
+}
+function switchBouTab(tab){
+  document.querySelectorAll('.tab[data-bou-tab]').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-bou-tab="${tab}"]`).classList.add('active');
+  if(tab === 'historique'){ loadBoutiqueHistory(); showBouStage('historique'); }
+  else if(tab === 'catalogue'){ renderBoutiqueCatalogue(); showBouStage('catalogue'); }
+  else { routeBouStage(); }
+}
+function routeBouStage(){
+  updateBouStatusHeader();
+  if(bouState.status === 'none'){ renderBoutiqueOuverture(); showBouStage('ouverture'); }
+  else if(bouState.status === 'open'){ renderBoutiqueService(); showBouStage('service'); }
+  else { computeAndShowBoutiqueSituation(true); }
+  document.querySelector('.tab[data-bou-tab="service"]').classList.add('active');
+  document.querySelector('.tab[data-bou-tab="catalogue"]').classList.remove('active');
+  document.querySelector('.tab[data-bou-tab="historique"]').classList.remove('active');
+}
+function updateBouStatusHeader(){
+  const dot = document.getElementById('bouStatusDot');
+  const txt = document.getElementById('bouStatusText');
+  dot.className = 'status-dot ' + (bouState.status === 'open' ? 'open' : bouState.status === 'closed' ? 'closed' : 'none');
+  if(bouState.status === 'open') txt.textContent = 'Boutique ouverte depuis ' + (bouState.openedAt ? new Date(bouState.openedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '');
+  else if(bouState.status === 'closed') txt.textContent = 'Boutique clôturée — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+  else txt.textContent = 'Boutique non ouverte — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+}
+
+// ---------- Persistence (réutilise la table shifts) ----------
+async function loadTodayBoutiqueShift(){
+  try{
+    const { data, error } = await sb.from('shifts').select('data').eq('user_id', currentUser.id).eq('shift_date', todayDate()).maybeSingle();
+    if(error) throw error;
+    if(data && data.data && data.data.status && data.data.status !== 'none'){
+      const saved = data.data;
+      const def = defaultBoutiqueState();
+      bouState = Object.assign(def, saved);
+      bouState.retraits = Array.isArray(saved.retraits) ? saved.retraits : [];
+      bouState.depots = Array.isArray(saved.depots) ? saved.depots : [];
+      bouState.ventes = Array.isArray(saved.ventes) ? saved.ventes : [];
+    } else {
+      bouState = defaultBoutiqueState();
+    }
+  }catch(e){ console.warn('Chargement impossible :', e.message); bouState = defaultBoutiqueState(); }
+  routeBouStage();
+}
+async function persistBoutique(){
+  try{
+    const { error } = await sb.from('shifts').upsert({
+      user_id: currentUser.id, shift_date: todayDate(), data: bouState, updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,shift_date' });
+    if(error) throw error;
+    return true;
+  }catch(e){ console.warn('Sauvegarde impossible :', e.message); return false; }
+}
+
+// ---------- Ouverture ----------
+function renderBoutiqueOuverture(){
+  const currentStation = bouState.stationName || profileInfo.station_name || '';
+  const sel = document.getElementById('bouInfoStation');
+  const newInput = document.getElementById('bouInfoStationNew');
+  sel.innerHTML = '<option value="">— Choisir une station —</option>'
+    + stationOptions.map(s => `<option value="${s}">${s}</option>`).join('')
+    + '<option value="__new__">➕ Nouvelle station...</option>';
+  if(currentStation && stationOptions.includes(currentStation)){ sel.value = currentStation; newInput.classList.add('hidden'); }
+  else if(currentStation){ sel.value = '__new__'; newInput.value = currentStation; newInput.classList.remove('hidden'); }
+  else { newInput.classList.add('hidden'); }
+  sel.onchange = e => {
+    if(e.target.value === '__new__'){ newInput.classList.remove('hidden'); newInput.value=''; newInput.focus(); bouState.stationName=''; }
+    else { newInput.classList.add('hidden'); bouState.stationName = e.target.value; }
+  };
+  newInput.oninput = e => bouState.stationName = e.target.value;
+
+  document.getElementById('bouInfoHotesse').value = bouState.hotesseName || profileInfo.full_name || '';
+  document.getElementById('bouInfoHotesse').oninput = e => bouState.hotesseName = e.target.value;
+
+  document.getElementById('bouFondsCaisse').value = bouState.fondsCaisse || '';
+  document.getElementById('bouFondsCaisse').oninput = e => bouState.fondsCaisse = e.target.value;
+}
+async function openBoutiqueShift(){
+  if(!bouState.stationName || !bouState.stationName.trim()){
+    document.getElementById('bouOuvStatusMsg').textContent = 'Veuillez choisir ou saisir le nom de la station.';
+    document.getElementById('bouOuvStatusMsg').style.color = 'var(--bad)';
+    return;
+  }
+  bouState.status = 'open';
+  bouState.openedAt = new Date().toISOString();
+  try{
+    await sb.from('profiles').upsert({
+      id: currentUser.id,
+      full_name: bouState.hotesseName || profileInfo.full_name,
+      station_name: bouState.stationName || profileInfo.station_name
+    });
+  }catch(e){ console.warn('Synchronisation du profil impossible :', e.message); }
+  const ok = await persistBoutique();
+  const msg = document.getElementById('bouOuvStatusMsg');
+  if(ok){ routeBouStage(); } else { msg.textContent = "Échec de l'enregistrement — vérifiez votre connexion."; }
+}
+
+// ---------- Journée : opérations ----------
+function renderBoutiqueService(){
+  renderBouOpGrid();
+  renderBouOpFields();
+  renderBouOpList();
+}
+function renderBouOpGrid(){
+  document.getElementById('bouOpGrid').innerHTML = BOU_OPTYPES.map(t => `
+    <div class="vtype-btn ${t.key===currentBouOpType?'active':''}" onclick="selectBouOpType('${t.key}')">
+      <span class="ic">${t.ic}</span><span class="lb">${t.label}</span>
+    </div>`).join('');
+}
+function selectBouOpType(key){ currentBouOpType = key; renderBouOpGrid(); renderBouOpFields(); }
+function renderBouOpFields(){
+  const box = document.getElementById('bouOpFields');
+  if(currentBouOpType === 'vente'){
+    if(!bouProducts.length){
+      box.innerHTML = '<div class="empty">Aucun produit dans le catalogue — ajoutez-en depuis l\'onglet Catalogue.</div>';
+      return;
+    }
+    box.innerHTML = `
+      <select class="note-input" id="bouVenteProduit">
+        ${bouProducts.map(p => `<option value="${p.id}">${p.name} — ${fmt(p.price)} F</option>`).join('')}
+      </select>
+      <div class="stock-row">
+        <div class="field"><span class="field-label">Quantité</span><input class="led-input" id="bouVenteQte" inputmode="numeric" value="1"></div>
+        <div class="field"><span class="field-label">Total</span><input class="led-input" id="bouVenteTotal" disabled></div>
+      </div>`;
+    document.getElementById('bouVenteProduit').onchange = updateBouVenteTotal;
+    document.getElementById('bouVenteQte').oninput = updateBouVenteTotal;
+    updateBouVenteTotal();
+  } else {
+    box.innerHTML = `<input class="led-input" style="margin-bottom:10px" id="bouOpMontant" inputmode="decimal" placeholder="Montant (FCFA)">`;
+  }
+}
+function updateBouVenteTotal(){
+  const prodId = document.getElementById('bouVenteProduit').value;
+  const prod = bouProducts.find(p => p.id === prodId);
+  const qte = num(document.getElementById('bouVenteQte').value) || 0;
+  document.getElementById('bouVenteTotal').value = prod ? fmt(prod.price * qte) : 0;
+}
+async function addBoutiqueOp(){
+  const note = document.getElementById('bouOpNote').value.trim();
+  const time = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  if(currentBouOpType === 'vente'){
+    if(!bouProducts.length){ alert("Ajoutez au moins un produit au catalogue avant d'enregistrer une vente."); return; }
+    const prodId = document.getElementById('bouVenteProduit').value;
+    const prod = bouProducts.find(p => p.id === prodId);
+    const qte = num(document.getElementById('bouVenteQte').value);
+    if(!prod || qte <= 0){ alert('Choisissez un produit et une quantité valide.'); return; }
+    const montant = prod.price * qte;
+    if(currentEditOpId){
+      const v = bouState.ventes.find(v => v.id === currentEditOpId);
+      if(v){ v.productId = prod.id; v.productName = prod.name; v.prixUnitaire = prod.price; v.quantite = qte; v.montant = montant; v.note = note; }
+    } else {
+      bouState.ventes.push({ id: uid(), productId: prod.id, productName: prod.name, prixUnitaire: prod.price, quantite: qte, montant, note, time });
+    }
+  } else {
+    const montant = num(document.getElementById('bouOpMontant').value);
+    if(montant <= 0){ alert('Indiquez un montant.'); return; }
+    const list = currentBouOpType === 'retrait' ? bouState.retraits : bouState.depots;
+    if(currentEditOpId){
+      const v = list.find(v => v.id === currentEditOpId);
+      if(v){ v.montant = montant; v.note = note; }
+    } else {
+      list.push({ id: uid(), montant, note, time });
+    }
+  }
+  cancelEditBouOp();
+  renderBouOpList();
+  await persistBoutique();
+}
+function renderBouOpList(){
+  const all = [
+    ...bouState.retraits.map(v => ({ ...v, kind:'retrait' })),
+    ...bouState.depots.map(v => ({ ...v, kind:'depot' })),
+    ...bouState.ventes.map(v => ({ ...v, kind:'vente' })),
+  ].sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  document.getElementById('bouOpCount').textContent = all.length ? `(${all.length})` : '';
+  document.getElementById('bouOpList').innerHTML = all.slice().reverse().map(v => {
+    const meta = BOU_OPTYPES.find(t => t.key === v.kind);
+    let title = meta.label;
+    let sub = v.time || '';
+    if(v.kind === 'vente'){ title = v.productName; sub += ` · ${v.quantite} × ${fmt(v.prixUnitaire)} F`; }
+    if(v.note) sub += ' · ' + v.note;
+    const sign = v.kind === 'retrait' ? '-' : '+';
+    return `
+    <div class="list-item">
+      <span class="ic">${meta.ic}</span>
+      <div class="info"><div class="t">${title}</div><div class="s">${sub}</div></div>
+      <span class="amt">${sign}${fmt(v.montant)}</span>
+      <button class="del" onclick="editBouOp('${v.kind}','${v.id}')" style="color:var(--amber)">✎</button>
+      <button class="del" onclick="removeBouOp('${v.kind}','${v.id}')">✕</button>
+    </div>`;
+  }).join('') || '<div class="empty">Aucune opération enregistrée</div>';
+}
+function editBouOp(kind, id){
+  const list = kind === 'retrait' ? bouState.retraits : kind === 'depot' ? bouState.depots : bouState.ventes;
+  const v = list.find(v => v.id === id);
+  if(!v) return;
+  currentEditOpId = id;
+  currentBouOpType = kind;
+  renderBouOpGrid();
+  renderBouOpFields();
+  if(kind === 'vente'){
+    document.getElementById('bouVenteProduit').value = v.productId;
+    document.getElementById('bouVenteQte').value = v.quantite;
+    updateBouVenteTotal();
+  } else {
+    document.getElementById('bouOpMontant').value = v.montant;
+  }
+  document.getElementById('bouOpNote').value = v.note || '';
+  document.getElementById('bouAddOpBtn').textContent = '✓ Enregistrer la modification';
+  document.getElementById('bouCancelOpEditBtn').classList.remove('hidden');
+}
+function cancelEditBouOp(){
+  currentEditOpId = null;
+  document.getElementById('bouOpNote').value = '';
+  document.getElementById('bouAddOpBtn').textContent = '+ Ajouter cette opération';
+  document.getElementById('bouCancelOpEditBtn').classList.add('hidden');
+  renderBouOpFields();
+}
+async function removeBouOp(kind, id){
+  if(kind === 'retrait') bouState.retraits = bouState.retraits.filter(v => v.id !== id);
+  else if(kind === 'depot') bouState.depots = bouState.depots.filter(v => v.id !== id);
+  else bouState.ventes = bouState.ventes.filter(v => v.id !== id);
+  renderBouOpList();
+  await persistBoutique();
+}
+function backToOpFromBoutiqueSituation(){
+  renderBoutiqueService();
+  showBouStage('service');
+}
+
+// ---------- Clôture ----------
+function goToBoutiqueClosing(){
+  document.getElementById('bouMontantCompte').value = bouState.montantCompte || '';
+  showBouStage('cloture');
+}
+
+// ---------- Situation / calculs ----------
+function bouShiftTotals(d){
+  const totalRetraits = (d.retraits||[]).reduce((s,v)=>s+v.montant,0);
+  const totalDepots = (d.depots||[]).reduce((s,v)=>s+v.montant,0);
+  const totalVentes = (d.ventes||[]).reduce((s,v)=>s+v.montant,0);
+  const fondsCaisse = num(d.fondsCaisse);
+  const attendu = fondsCaisse + totalDepots + totalVentes - totalRetraits;
+  const montantCompte = num(d.montantCompte);
+  return { totalRetraits, totalDepots, totalVentes, fondsCaisse, attendu, montantCompte, ecart: montantCompte - attendu };
+}
+function computeAndShowBoutiqueSituation(readOnly){
+  document.getElementById('bouSituInfoBox').innerHTML = `
+    <div class="summary-line"><span>Station</span><span class="v">${bouState.stationName || '—'}</span></div>
+    <div class="summary-line"><span>Hôtesse</span><span class="v">${bouState.hotesseName || '—'}</span></div>
+    <div class="summary-line"><span>Date</span><span class="v">${new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span></div>`;
+  const montantCompteInput = document.getElementById('bouMontantCompte');
+  if(montantCompteInput && montantCompteInput.value !== '') bouState.montantCompte = montantCompteInput.value;
+  const t = bouShiftTotals(bouState);
+
+  document.getElementById('bouSumRetraits').innerHTML = bouState.retraits.map(v => `
+    <div class="summary-line"><span>${v.time}${v.note?' · '+v.note:''}</span><span class="v">-${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucun retrait</div>';
+  document.getElementById('bouSumDepots').innerHTML = bouState.depots.map(v => `
+    <div class="summary-line"><span>${v.time}${v.note?' · '+v.note:''}</span><span class="v">+${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucun dépôt</div>';
+  document.getElementById('bouSumVentes').innerHTML = bouState.ventes.map(v => `
+    <div class="summary-line"><span>${v.productName} × ${v.quantite}</span><span class="v">+${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucune vente</div>';
+  document.getElementById('bouSumFinal').innerHTML = `
+    <div class="summary-line"><span>Fonds de caisse départ</span><span class="v">${fmt(t.fondsCaisse)} F</span></div>
+    <div class="summary-line"><span>+ Dépôts</span><span class="v">${fmt(t.totalDepots)} F</span></div>
+    <div class="summary-line"><span>+ Ventes produits</span><span class="v">${fmt(t.totalVentes)} F</span></div>
+    <div class="summary-line"><span>− Retraits</span><span class="v">-${fmt(t.totalRetraits)} F</span></div>
+    <div class="summary-line total"><span>Montant attendu en caisse</span><span class="v">${fmt(t.attendu)} F</span></div>
+    <div class="summary-line total"><span>Montant compté</span><span class="v">${fmt(t.montantCompte)} F</span></div>`;
+  const ok = t.ecart >= 0;
+  document.getElementById('bouSituationBox').innerHTML = `
+    <div class="situation-box ${ok?'ok':'bad'}">
+      <div class="tag">${t.ecart === 0 ? 'Caisse juste' : (t.ecart < 0 ? 'Manquant' : 'Excédent')}</div>
+      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
+      <div class="hint">Compté (${fmt(t.montantCompte)}) − Attendu (${fmt(t.attendu)})</div>
+    </div>`;
+
+  document.getElementById('bouCloseShiftBtn').classList.toggle('hidden', !!readOnly);
+  document.getElementById('bouBackToOpBtn').classList.toggle('hidden', !!readOnly);
+  document.getElementById('bouBackToClotureBtn').classList.toggle('hidden', !!readOnly);
+  if(readOnly){
+    document.getElementById('bouSignaturePanel').classList.remove('hidden');
+    document.getElementById('bouSignatureInput').style.display = 'none';
+    document.querySelector('#bouSignaturePanel p').classList.add('hidden');
+    let confirmEl = document.getElementById('bouSignatureConfirmed');
+    if(!confirmEl){
+      confirmEl = document.createElement('div');
+      confirmEl.id = 'bouSignatureConfirmed';
+      confirmEl.style.cssText = 'font-size:14px;font-weight:700;color:var(--good);';
+      document.getElementById('bouSignaturePanel').appendChild(confirmEl);
+    }
+    confirmEl.textContent = '✓ Signé par ' + (bouState.signature || '—');
+  } else {
+    document.getElementById('bouSignaturePanel').classList.remove('hidden');
+    document.getElementById('bouSignatureInput').style.display = '';
+    document.querySelector('#bouSignaturePanel p').classList.remove('hidden');
+    const confirmEl = document.getElementById('bouSignatureConfirmed');
+    if(confirmEl) confirmEl.remove();
+    document.getElementById('bouSignatureInput').value = bouState.signature || bouState.hotesseName || '';
+  }
+  showBouStage('situation');
+  window._lastBouSituation = t;
+}
+function shareBoutiqueWhatsApp(){
+  const s = window._lastBouSituation;
+  if(!s) return;
+  const dateStr = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  let msg = `*Situation boutique du ${dateStr}*\n`;
+  if(bouState.stationName) msg += `Station : ${bouState.stationName}\n`;
+  if(bouState.hotesseName) msg += `Hôtesse : ${bouState.hotesseName}\n\n`;
+  msg += `Fonds de caisse départ : ${fmt(s.fondsCaisse)} F\n`;
+  msg += `Dépôts : +${fmt(s.totalDepots)} F\n`;
+  msg += `Ventes produits : +${fmt(s.totalVentes)} F\n`;
+  msg += `Retraits : -${fmt(s.totalRetraits)} F\n`;
+  msg += `Attendu en caisse : ${fmt(s.attendu)} F\n`;
+  msg += `Compté : ${fmt(s.montantCompte)} F\n`;
+  msg += `Écart : ${s.ecart>0?'+':''}${fmt(s.ecart)} F ${s.ecart<0?'(manquant)':(s.ecart>0?'(excédent)':'(caisse juste)')}\n`;
+  msg += `\n_Signé par ${bouState.signature || bouState.hotesseName || '—'}_`;
+  const url = 'https://wa.me/?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+}
+async function closeBoutiqueShift(){
+  const sig = document.getElementById('bouSignatureInput').value.trim();
+  if(!sig){
+    document.getElementById('bouSignatureMsg').textContent = 'Veuillez taper votre nom pour signer avant de clôturer.';
+    document.getElementById('bouSignatureMsg').style.color = 'var(--bad)';
+    document.getElementById('bouSignatureInput').focus();
+    return;
+  }
+  bouState.signature = sig;
+  bouState.status = 'closed';
+  bouState.closedAt = new Date().toISOString();
+  const ok = await persistBoutique();
+  const msg = document.getElementById('bouStatusMsg');
+  if(ok){
+    msg.textContent = '✓ Boutique clôturée et archivée';
+    updateBouStatusHeader();
+    document.getElementById('bouCloseShiftBtn').classList.add('hidden');
+    document.getElementById('bouBackToOpBtn').classList.add('hidden');
+    document.getElementById('bouBackToClotureBtn').classList.add('hidden');
+  } else { msg.textContent = "Échec de l'enregistrement — réessayez."; }
+}
+
+// ---------- Historique ----------
+async function loadBoutiqueHistory(){
+  try{
+    const { data, error } = await sb.from('shifts').select('shift_date,data').eq('user_id', currentUser.id).order('shift_date', { ascending:false }).limit(90);
+    if(error) throw error;
+    bouHistoryCache = (data || []).filter(r => r.data && r.data.status === 'closed' && Object.prototype.hasOwnProperty.call(r.data, 'fondsCaisse'));
+  }catch(e){ console.warn('Historique indisponible :', e.message); bouHistoryCache = []; }
+  renderBoutiqueHistory();
+}
+function renderBoutiqueHistory(){
+  const now = new Date();
+  const ym = now.toISOString().slice(0,7);
+  document.getElementById('bouMonthTitle').textContent = 'Récapitulatif — ' + now.toLocaleDateString('fr-FR',{month:'long', year:'numeric'});
+  const monthRows = bouHistoryCache.filter(r => r.shift_date.startsWith(ym));
+  let monthVentes=0, monthDepots=0, monthRetraits=0, monthEcart=0;
+  monthRows.forEach(r => { const t = bouShiftTotals(r.data); monthVentes+=t.totalVentes; monthDepots+=t.totalDepots; monthRetraits+=t.totalRetraits; monthEcart+=t.ecart; });
+  document.getElementById('bouMonthRecap').innerHTML = monthRows.length ? `
+    <div class="summary-line"><span>Jours travaillés</span><span class="v">${monthRows.length}</span></div>
+    <div class="summary-line"><span>Total ventes produits</span><span class="v">${fmt(monthVentes)} F</span></div>
+    <div class="summary-line"><span>Total dépôts</span><span class="v">${fmt(monthDepots)} F</span></div>
+    <div class="summary-line"><span>Total retraits</span><span class="v">${fmt(monthRetraits)} F</span></div>
+    <div class="summary-line total"><span>Écart cumulé</span><span class="v" style="color:${monthEcart<0?'var(--bad)':'var(--good)'}">${monthEcart>0?'+':''}${fmt(monthEcart)} F</span></div>
+  ` : '<div class="empty">Aucune journée clôturée ce mois-ci</div>';
+  document.getElementById('bouHistList').innerHTML = bouHistoryCache.map(r => {
+    const t = bouShiftTotals(r.data);
+    const d = new Date(r.shift_date + 'T00:00:00');
+    return `
+    <div class="hist-item" onclick="openBoutiqueHistoryDetail('${r.shift_date}')">
+      <div class="hd">
+        <div class="date">${d.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
+        <div class="sub">Ventes ${fmt(t.totalVentes)} F · Compté ${fmt(t.montantCompte)} F</div>
+      </div>
+      <div class="he ${t.ecart<0?'bad':'good'}">${t.ecart>0?'+':''}${fmt(t.ecart)}</div>
+    </div>`;
+  }).join('') || '<div class="empty">Aucune journée archivée pour l’instant</div>';
+}
+function openBoutiqueHistoryDetail(dateStr){
+  const row = bouHistoryCache.find(r => r.shift_date === dateStr);
+  if(!row) return;
+  const d = row.data;
+  const t = bouShiftTotals(d);
+  const dObj = new Date(dateStr + 'T00:00:00');
+  const ok = t.ecart >= 0;
+  document.getElementById('bouDetailInfoBox').innerHTML = `
+    <div class="summary-line"><span>Station</span><span class="v">${d.stationName || '—'}</span></div>
+    <div class="summary-line"><span>Hôtesse</span><span class="v">${d.hotesseName || '—'}</span></div>
+    <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
+  document.getElementById('bouDetailBox').innerHTML = `
+    <div class="situation-box ${ok?'ok':'bad'}">
+      <div class="tag">${dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'})}</div>
+      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
+      <div class="hint">Compté (${fmt(t.montantCompte)}) − Attendu (${fmt(t.attendu)})</div>
+    </div>`;
+  document.getElementById('bouDetailRetraits').innerHTML = (d.retraits||[]).map(v => `
+    <div class="summary-line"><span>${v.time}${v.note?' · '+v.note:''}</span><span class="v">-${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucun retrait</div>';
+  document.getElementById('bouDetailDepots').innerHTML = (d.depots||[]).map(v => `
+    <div class="summary-line"><span>${v.time}${v.note?' · '+v.note:''}</span><span class="v">+${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucun dépôt</div>';
+  document.getElementById('bouDetailVentes').innerHTML = (d.ventes||[]).map(v => `
+    <div class="summary-line"><span>${v.productName} × ${v.quantite}</span><span class="v">+${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucune vente</div>';
+  document.getElementById('bouDetailFinal').innerHTML = `
+    <div class="summary-line"><span>Fonds de caisse départ</span><span class="v">${fmt(t.fondsCaisse)} F</span></div>
+    <div class="summary-line total"><span>Attendu en caisse</span><span class="v">${fmt(t.attendu)} F</span></div>
+    <div class="summary-line total"><span>Compté</span><span class="v">${fmt(t.montantCompte)} F</span></div>`;
+  showBouStage('detail');
+}
+</script>
+</body>
+        </html>

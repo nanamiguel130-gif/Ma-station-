@@ -117,6 +117,7 @@
   .save-btn.danger{ background:transparent; border:1px solid rgba(229,72,77,.4); color:var(--bad); }
 
   .vtype-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:12px; }
+  .optype-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:12px; }
   .vtype-btn{ background:var(--surface-2); border:1px solid var(--line); border-radius:9px; padding:9px 2px; text-align:center; cursor:pointer; }
   .vtype-btn .ic{ font-size:17px; display:block; }
   .vtype-btn .lb{ font-size:9.5px; color:var(--muted); margin-top:3px; display:block; font-weight:600; }
@@ -128,6 +129,7 @@
   .bons-field input{ width:100%; background:#0E1012; border:1px solid var(--line); border-radius:7px; padding:7px; color:var(--cream); font-family:'JetBrains Mono',monospace; text-align:center; font-size:14px; }
   .note-input{ width:100%; background:#0E1012; border:1px solid var(--line); border-radius:8px; padding:9px 10px; color:var(--cream); font-size:13px; margin-bottom:10px; }
   .note-input::placeholder{ color:var(--muted); }
+  .addbtn{ background:none; border:1px solid var(--line); color:var(--muted); font-size:11px; padding:4px 8px; border-radius:6px; cursor:pointer; }
 
   .list-item{ display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
   .list-item:last-child{ border-bottom:none; }
@@ -425,7 +427,149 @@
     <div class="panel"><h2>Récapitulatif</h2><div id="supDetailFinal"></div></div>
   </section>
 </main>
-</div><script>
+</div>
+
+<!-- ============== APP BOUTIQUE ============== -->
+<div id="boutiqueRoot" class="hidden">
+<header class="top">
+  <div class="brand">
+    <img src="fichier_00000000c0e871f4ac5a2f1708c3fec5.png" alt="Ma Station Service">
+    <span class="user-chip mono" onclick="signOut()">⎋ Déconnexion</span>
+  </div>
+  <div class="status-line"><span class="status-dot" id="bouStatusDot"></span><span id="bouStatusText">—</span></div>
+</header>
+
+<main>
+  <!-- ---------- OUVERTURE ---------- -->
+  <section class="view" id="view-bou-ouverture">
+    <div class="lead">
+      <div class="ic">🏪</div>
+      <h1>Ouverture de la boutique</h1>
+      <p>Renseignez le fonds de caisse de départ. Une seule fois, au début de la journée.</p>
+    </div>
+    <div class="panel">
+      <h2>Informations</h2>
+      <select class="note-input" id="bouInfoStation"></select>
+      <input class="note-input hidden" id="bouInfoStationNew" placeholder="Nom de la nouvelle station">
+      <input class="note-input" id="bouInfoHotesse" placeholder="Votre nom">
+    </div>
+    <div class="panel">
+      <h2>Fonds de caisse de départ</h2>
+      <input class="led-input" inputmode="decimal" id="bouFondsCaisse" placeholder="Montant (FCFA)">
+    </div>
+    <button class="save-btn" onclick="openBoutiqueShift()">✓ Enregistrer l'ouverture</button>
+    <div class="status-msg" id="bouOuvStatusMsg"></div>
+  </section>
+
+  <!-- ---------- JOURNÉE ---------- -->
+  <section class="view" id="view-bou-service">
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">🏪</div>
+      <h1>Boutique ouverte</h1>
+      <p>Enregistrez chaque opération au fur et à mesure.</p>
+    </div>
+    <div class="panel">
+      <h2>Nouvelle opération</h2>
+      <div class="optype-grid" id="bouOpGrid"></div>
+      <div id="bouOpFields"></div>
+      <input class="note-input" id="bouOpNote" placeholder="Note (facultatif)">
+      <button class="save-btn ghost" id="bouAddOpBtn" onclick="addBoutiqueOp()">+ Ajouter cette opération</button>
+      <button class="save-btn ghost hidden" id="bouCancelOpEditBtn" onclick="cancelEditBouOp()" style="color:var(--bad);border-color:rgba(229,72,77,.35)">✕ Annuler la modification</button>
+    </div>
+    <div class="panel">
+      <h2>Opérations du jour <span class="badge mono" id="bouOpCount"></span></h2>
+      <div id="bouOpList"></div>
+    </div>
+    <button class="save-btn" onclick="goToBoutiqueClosing()">🔒 Clôturer la boutique</button>
+  </section>
+
+  <!-- ---------- CLÔTURE ---------- -->
+  <section class="view" id="view-bou-cloture">
+    <div class="back-link" onclick="showBouStage('service')">← Retour</div>
+    <div class="lead">
+      <div class="ic">🧮</div>
+      <h1>Clôture de la caisse</h1>
+      <p>Comptez l'argent physiquement présent dans la caisse.</p>
+    </div>
+    <div class="panel">
+      <h2>Montant compté en caisse</h2>
+      <input class="led-input" inputmode="decimal" id="bouMontantCompte" placeholder="Montant (FCFA)">
+    </div>
+    <button class="save-btn" onclick="computeAndShowBoutiqueSituation()">Calculer la situation</button>
+  </section>
+
+  <!-- ---------- SITUATION ---------- -->
+  <section class="view" id="view-bou-situation">
+    <div class="panel" id="bouSituInfoBox"></div>
+    <div id="bouSituationBox"></div>
+    <div class="panel"><h2>Retraits</h2><div id="bouSumRetraits"></div></div>
+    <div class="panel"><h2>Dépôts</h2><div id="bouSumDepots"></div></div>
+    <div class="panel"><h2>Ventes produits</h2><div id="bouSumVentes"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="bouSumFinal"></div></div>
+    <div class="panel" id="bouSignaturePanel">
+      <h2>Signature</h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">En tapant votre nom, vous certifiez l'exactitude des informations ci-dessus.</p>
+      <input class="note-input" id="bouSignatureInput" placeholder="Tapez votre nom complet pour signer">
+      <div class="status-msg" id="bouSignatureMsg"></div>
+    </div>
+    <button class="save-btn" id="bouCloseShiftBtn" onclick="closeBoutiqueShift()">🔒 Clôturer (définitif)</button>
+    <button class="save-btn ghost" onclick="shareBoutiqueWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,.35)">📲 Partager via WhatsApp</button>
+    <button class="save-btn ghost" id="bouBackToOpBtn" onclick="backToOpFromBoutiqueSituation()">← Ajouter une opération oubliée</button>
+    <button class="save-btn ghost" id="bouBackToClotureBtn" onclick="showBouStage('cloture')">← Corriger le comptage</button>
+    <div class="status-msg" id="bouStatusMsg"></div>
+  </section>
+
+  <!-- ---------- CATALOGUE ---------- -->
+  <section class="view" id="view-bou-catalogue">
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">📦</div>
+      <h1>Catalogue produits</h1>
+      <p>Ajoutez, modifiez ou supprimez les produits vendus en boutique.</p>
+    </div>
+    <div class="panel">
+      <h2>Nouveau produit</h2>
+      <input class="note-input" id="bouProdName" placeholder="Nom du produit (ex: Eau minérale 50cl)">
+      <input class="led-input" style="margin-bottom:10px" id="bouProdPrice" inputmode="decimal" placeholder="Prix unitaire (FCFA)">
+      <button class="save-btn ghost" id="bouAddProdBtn" onclick="addBoutiqueProduct()">+ Ajouter au catalogue</button>
+      <button class="save-btn ghost hidden" id="bouCancelProdEditBtn" onclick="cancelEditBoutiqueProduct()" style="color:var(--bad);border-color:rgba(229,72,77,.35)">✕ Annuler la modification</button>
+    </div>
+    <div class="panel">
+      <h2>Produits enregistrés <span class="badge mono" id="bouProdCount"></span></h2>
+      <div id="bouProdList"></div>
+    </div>
+  </section>
+
+  <!-- ---------- HISTORIQUE ---------- -->
+  <section class="view" id="view-bou-historique">
+    <div class="month-recap">
+      <h2 id="bouMonthTitle">Récapitulatif du mois</h2>
+      <div id="bouMonthRecap"></div>
+    </div>
+    <div class="panel">
+      <h2>Journées archivées</h2>
+      <div id="bouHistList"></div>
+    </div>
+  </section>
+
+  <!-- ---------- DÉTAIL ARCHIVÉ ---------- -->
+  <section class="view" id="view-bou-detail">
+    <div class="back-link" onclick="showBouStage('historique')">← Retour à l'historique</div>
+    <div class="panel" id="bouDetailInfoBox"></div>
+    <div id="bouDetailBox"></div>
+    <div class="panel"><h2>Retraits</h2><div id="bouDetailRetraits"></div></div>
+    <div class="panel"><h2>Dépôts</h2><div id="bouDetailDepots"></div></div>
+    <div class="panel"><h2>Ventes produits</h2><div id="bouDetailVentes"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="bouDetailFinal"></div></div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button class="tab active" data-bou-tab="service" onclick="switchBouTab('service')"><span class="ic">🏪</span>Journée</button>
+  <button class="tab" data-bou-tab="catalogue" onclick="switchBouTab('catalogue')"><span class="ic">📦</span>Catalogue</button>
+  <button class="tab" data-bou-tab="historique" onclick="switchBouTab('historique')"><span class="ic">📅</span>Historique</button>
+</nav>
+
+                                            </div><script>
 // ============================================================
 // CONFIGURATION SUPABASE
 // ============================================================
@@ -480,6 +624,7 @@ sb.auth.onAuthStateChange((event, session) => {
     currentUser = null;
     document.getElementById('appRoot').classList.add('hidden');
     document.getElementById('supervisorRoot').classList.add('hidden');
+    document.getElementById('boutiqueRoot').classList.add('hidden');
     document.getElementById('authScreen').classList.remove('hidden');
   }
 });
@@ -540,6 +685,8 @@ async function initApp(){
   await loadProfile();
   if(profileInfo.role === 'superviseur'){
     initSupervisor();
+  } else if(profileInfo.role === 'boutique'){
+    initBoutique();
   } else {
     document.getElementById('appRoot').classList.remove('hidden');
     document.getElementById('userChip').textContent = '⎋ ' + (currentUser.email || 'Déconnexion');
@@ -1181,163 +1328,7 @@ function openHistoryDetail(dateStr){
     <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(t.totalCA)} F</span></div>
     <div class="summary-line total"><span>Reçu total</span><span class="v">${fmt(t.totalRecu)} F</span></div>`;
   showStage('detail');
-}
-
-// ============================================================
-// ESPACE SUPERVISEUR
-// ============================================================
-function showSupStage(stage){
-  document.querySelectorAll('#supervisorRoot .view').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-sup-' + stage).classList.add('active');
-}
-async function initSupervisor(){
-  document.getElementById('appRoot').classList.add('hidden');
-  document.getElementById('supervisorRoot').classList.remove('hidden');
-  if(!profileInfo.station_name){
-    showSupStage('station-setup');
-  } else {
-    document.getElementById('supStationName').textContent = profileInfo.station_name;
-    document.getElementById('supStationLine').textContent = 'Superviseur — ' + profileInfo.station_name;
-    showSupStage('list');
-    await loadSupervisorPompistes();
-  }
-}
-async function saveSupervisorStation(){
-  const val = document.getElementById('supStationInput').value.trim();
-  const msg = document.getElementById('supSetupMsg');
-  if(!val){ msg.textContent = 'Indiquez le nom de la station.'; msg.style.color = 'var(--bad)'; return; }
-  try{
-    const { error } = await sb.from('profiles').upsert({ id: currentUser.id, station_name: val, role: 'superviseur' });
-    if(error) throw error;
-    profileInfo.station_name = val;
-    document.getElementById('supStationName').textContent = val;
-    document.getElementById('supStationLine').textContent = 'Superviseur — ' + val;
-    showSupStage('list');
-    await loadSupervisorPompistes();
-  }catch(e){ msg.textContent = 'Erreur : ' + e.message; msg.style.color = 'var(--bad)'; }
-}
-async function loadSupervisorPompistes(){
-  const box = document.getElementById('supPompisteList');
-  box.innerHTML = '<div class="empty">Chargement…</div>';
-  try{
-    const { data: pompistes, error } = await sb.from('profiles')
-      .select('id,full_name')
-      .eq('station_name', profileInfo.station_name)
-      .eq('role', 'pompiste');
-    if(error) throw error;
-    if(!pompistes || !pompistes.length){ box.innerHTML = '<div class="empty">Aucun pompiste trouvé pour cette station pour l’instant.</div>'; return; }
-    const today = todayDate();
-    const rows = [];
-    for(const p of pompistes){
-      const { data: shift } = await sb.from('shifts').select('data').eq('user_id', p.id).eq('shift_date', today).maybeSingle();
-      rows.push({ profile: p, shift: shift ? shift.data : null });
-    }
-    box.innerHTML = rows.map(r => {
-      const st = r.shift ? r.shift.status : 'none';
-      const label = st === 'open' ? 'Poste ouvert' : st === 'closed' ? 'Poste clôturé' : 'Pas encore commencé';
-      const dotClass = st === 'open' ? 'open' : st === 'closed' ? 'closed' : 'none';
-      let ecartTxt = '';
-      if(st === 'closed'){
-        const t = shiftTotals(r.shift);
-        ecartTxt = ` · ${t.ecart>0?'+':''}${fmt(t.ecart)} F`;
-      }
-      return `
-      <div class="hist-item" style="cursor:default">
-        <div class="hd" onclick="openSupervisorDetail('${r.profile.id}')" style="cursor:pointer">
-          <div class="date">${r.profile.full_name || 'Sans nom'}</div>
-          <div class="sub"><span class="status-dot ${dotClass}" style="display:inline-block;margin-right:4px"></span>${label}${ecartTxt}</div>
-        </div>
-        <button class="del" onclick="openSupervisorHistory('${r.profile.id}','${(r.profile.full_name || 'Sans nom').replace(/'/g,"\\'")}')" style="font-size:11px;white-space:nowrap;color:var(--amber)">📅 Historique</button>
-      </div>`;
-    }).join('');
-  }catch(e){
-    box.innerHTML = '<div class="empty">Erreur de chargement : ' + e.message + '</div>';
-  }
-}
-async function openSupervisorDetail(pompisteId){
-  const { data, error } = await sb.from('shifts').select('data').eq('user_id', pompisteId).eq('shift_date', todayDate()).maybeSingle();
-  const { data: profRow } = await sb.from('profiles').select('full_name').eq('id', pompisteId).maybeSingle();
-  if(error || !data || !data.data || data.data.status === 'none'){
-    alert("Ce pompiste n'a pas encore ouvert son poste aujourd'hui.");
-    return;
-  }
-  renderSupervisorDay(profRow?.full_name || '—', data.data, new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'}));
-  document.getElementById('supDetailBackLink').setAttribute('onclick', "showSupStage('list')");
-  document.getElementById('supDetailBackLink').textContent = '← Retour à la liste';
-  showSupStage('detail');
-}
-
-let supHistoryCache = [];
-async function openSupervisorHistory(pompisteId, pompisteName){
-  document.getElementById('supHistoryTitle').textContent = 'Historique — ' + pompisteName;
-  const box = document.getElementById('supHistoryList');
-  box.innerHTML = '<div class="empty">Chargement…</div>';
-  showSupStage('history');
-  try{
-    const { data, error } = await sb.from('shifts')
-      .select('shift_date,data')
-      .eq('user_id', pompisteId)
-      .order('shift_date', { ascending:false })
-      .limit(90);
-    if(error) throw error;
-    supHistoryCache = (data || []).filter(r => r.data && r.data.status === 'closed');
-    if(!supHistoryCache.length){ box.innerHTML = '<div class="empty">Aucune journée clôturée pour ce pompiste.</div>'; return; }
-    box.innerHTML = supHistoryCache.map(r => {
-      const t = shiftTotals(r.data);
-      const d = new Date(r.shift_date + 'T00:00:00');
-      return `
-      <div class="hist-item" onclick="openSupervisorDayDetail('${r.shift_date}','${pompisteName.replace(/'/g,"\\'")}')">
-        <div class="hd">
-          <div class="date">${d.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
-          <div class="sub">Vendu ${fmt(t.totalCA)} F · Reçu ${fmt(t.totalRecu)} F</div>
-        </div>
-        <div class="he ${t.ecart<0?'bad':'good'}">${t.ecart>0?'+':''}${fmt(t.ecart)}</div>
-      </div>`;
-    }).join('');
-  }catch(e){
-    box.innerHTML = '<div class="empty">Erreur de chargement : ' + e.message + '</div>';
-  }
-}
-function openSupervisorDayDetail(dateStr, pompisteName){
-  const row = supHistoryCache.find(r => r.shift_date === dateStr);
-  if(!row) return;
-  const dObj = new Date(dateStr + 'T00:00:00');
-  renderSupervisorDay(pompisteName, row.data, dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}));
-  document.getElementById('supDetailBackLink').setAttribute('onclick', "showSupStage('history')");
-  document.getElementById('supDetailBackLink').textContent = '← Retour à l\'historique';
-  showSupStage('detail');
-}
-function renderSupervisorDay(pompisteName, d, dateLabel){
-  const t = shiftTotals(d);
-  const ok = t.ecart >= 0;
-  document.getElementById('supDetailInfoBox').innerHTML = `
-    <div class="summary-line"><span>Pompiste</span><span class="v">${pompisteName || '—'}</span></div>
-    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>
-    <div class="summary-line"><span>Statut</span><span class="v">${d.status === 'closed' ? 'Clôturé' : 'En cours'}</span></div>
-    <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
-  document.getElementById('supDetailBox').innerHTML = `
-    <div class="situation-box ${ok?'ok':'bad'}">
-      <div class="tag">${dateLabel}</div>
-      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
-      <div class="hint">Reçu (${fmt(t.totalRecu)}) − Vendu (${fmt(t.totalCA)})</div>
-    </div>`;
-  document.getElementById('supDetailFuels').innerHTML = t.fuelSales.map(f => `
-    <div class="summary-line"><span>${f.label} <span style="color:var(--muted)">— ${f.qty.toFixed(1)} L</span></span><span class="v">${fmt(f.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
-  document.getElementById('supDetailGaz').innerHTML = t.gazSales.map(g => `
-    <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
-  document.getElementById('supDetailPay').innerHTML = VTYPES.map(v => `
-    <div class="summary-line"><span>${v.ic} ${v.label}</span><span class="v">${fmt(t.pay[v.key])}</span></div>`).join('');
-  document.getElementById('supDetailVersementsList').innerHTML = renderVersementsReadOnly(d.versements);
-  document.getElementById('supDetailDepenses').innerHTML = (d.depenses || []).map(dep => `
-    <div class="summary-line"><span>${dep.motif}</span><span class="v">-${fmt(dep.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
-  document.getElementById('supDetailFinal').innerHTML = `
-    <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(t.totalCA)} F</span></div>
-    <div class="summary-line total"><span>Reçu total</span><span class="v">${fmt(t.totalRecu)} F</span></div>`;
-  showSupStage('detail');
-}
-</script>
-</body>
-  </html>// ============================================================
+}// ============================================================
 // ESPACE SUPERVISEUR
 // ============================================================
 function showSupStage(stage){
@@ -2000,4 +1991,4 @@ function openBoutiqueHistoryDetail(dateStr){
 }
 </script>
 </body>
-        </html>
+</html>

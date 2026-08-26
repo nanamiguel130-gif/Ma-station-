@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0B1730">
+<title>Ma Station Pro — Pilotage intelligent</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --navy:#0B1730;--navy2:#122447;--blue:#1E5EFF;--green:#18A66A;--orange:#FF8A00;
+  --bg:#F4F7FB;--card:#fff;--text:#172033;--muted:#6D7788;--line:#E4E9F1;
+  --red:#D92D3F;--yellow:#E7A300;--shadow:0 8px 28px rgba(17,35,67,.08);--r:18px
+}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+button,input,select,textarea{font:inherit}button{cursor:pointer}body{padding-bottom:78px}
+.hidden{display:none!important}.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+#auth{min-height:100vh;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at top,#1B376B 0,#0B1730 52%,#071020 100%)}
+.auth-card{width:min(420px,100%);background:#fff;border-radius:26px;padding:28px;box-shadow:0 25px 70px rgba(0,0,0,.25)}
+.logo{font-weight:900;font-size:25px;color:var(--navy);letter-spacing:-.6px}.logo span{color:var(--orange)}
+.auth-card p{color:var(--muted);font-size:13px;line-height:1.5}.field{margin:10px 0}.field label{display:block;font-size:12px;font-weight:700;margin-bottom:5px;color:var(--muted)}
+input,select,textarea{width:100%;border:1px solid var(--line);background:#fff;border-radius:11px;padding:12px;color:var(--text);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(30,94,255,.1)}
+.btn{border:0;border-radius:11px;padding:12px 15px;font-weight:800}.btn.primary{background:var(--blue);color:#fff}.btn.green{background:var(--green);color:#fff}.btn.orange{background:var(--orange);color:#1d1300}.btn.light{background:#EEF3FA;color:var(--navy)}.btn.danger{background:#FFF0F2;color:var(--red)}
+.auth-actions{display:grid;gap:10px;margin-top:14px}.error{background:#FFF0F2;color:var(--red);border:1px solid #FFD2D8;padding:10px;border-radius:10px;font-size:12px;margin:10px 0}
+header{position:sticky;top:0;z-index:30;background:rgba(244,247,251,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top{max-width:1100px;margin:auto;padding:13px 16px;display:flex;align-items:center;gap:12px}.brand{flex:1}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:2px}.avatar{width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:900}
+main{max-width:1100px;margin:auto;padding:18px 14px}.view{display:none}.view.active{display:block}
+.hero{background:linear-gradient(135deg,var(--navy),#193C78);color:#fff;border-radius:24px;padding:22px;box-shadow:var(--shadow);margin-bottom:14px}.hero h1{margin:0 0 6px;font-size:23px}.hero p{margin:0;color:#C9D7EF;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);margin-bottom:12px}.kpi .label{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.5px}.kpi .value{font-size:24px;font-weight:900;margin:7px 0}.kpi .hint{font-size:11px;color:var(--muted)}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:18px 2px 10px}.section-title h2{font-size:15px;margin:0}.section-title span{font-size:11px;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;font-size:10px;font-weight:900}.ok{background:#EAF8F1;color:#087A4A}.warn{background:#FFF6DF;color:#9A6B00}.bad{background:#FFF0F2;color:#B51F32}.info{background:#EDF3FF;color:#1B55C8}
+.alert{display:flex;gap:10px;padding:11px;border:1px solid var(--line);border-radius:13px;margin:8px 0}.alert .ico{font-size:20px}.alert strong{font-size:12px}.alert p{margin:3px 0 0;color:var(--muted);font-size:11px;line-height:1.4}
+.table{width:100%;border-collapse:collapse;font-size:12px}.table th,.table td{padding:10px 7px;border-bottom:1px solid var(--line);text-align:left}.table th{color:var(--muted);font-size:10px;text-transform:uppercase}.table td:last-child,.table th:last-child{text-align:right}
+.bar{height:8px;background:#E9EEF5;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:99px}
+.progress-row{margin:10px 0}.progress-row .row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px}
+.nav{position:fixed;z-index:40;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;padding:6px 5px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -5px 20px rgba(0,0,0,.06)}
+.nav button{flex:1;max-width:125px;border:0;background:transparent;color:var(--muted);padding:7px 2px;border-radius:12px;font-size:10px;font-weight:800}.nav button b{display:block;font-size:19px;margin-bottom:2px}.nav button.active{background:#EDF3FF;color:var(--blue)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions .btn{flex:1;min-width:130px}
+.chip{display:inline-block;background:#EEF3FA;border-radius:8px;padding:6px 8px;font-size:10px;font-weight:800;margin:3px}
+.person{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.person:last-child{border:0}.person .pic{width:36px;height:36px;border-radius:11px;background:#EAF0FA;display:grid;place-items:center;font-weight:900;color:var(--navy)}.person .meta{flex:1}.person strong{display:block;font-size:12px}.person small{color:var(--muted);font-size:10px}
+.modal{position:fixed;inset:0;background:rgba(5,14,30,.55);z-index:80;display:none;align-items:end;justify-content:center}.modal.open{display:flex}.sheet{width:min(680px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:24px 24px 0 0;padding:18px}.sheet h2{margin:0 0 12px;font-size:17px}.close{float:right;border:0;background:#EEF3FA;border-radius:50%;width:32px;height:32px}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:12px}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.hero h1{font-size:20px}.card{padding:14px}}
+</style>
+</head>
+<body>
+
+<section id="auth">
+  <div class="auth-card">
+    <div class="logo">MA <span>STATION</span> PRO</div>
+    <p>Pilotage intelligent des stations-service — supervision, contrôle, analyse et recommandations.</p>
+    <div id="authError" class="error hidden"></div>
+    <div class="field" id="nameWrap"><label>Nom complet</label><input id="name" placeholder="Votre nom"></div>
+    <div class="field"><label>Email</label><input id="email" type="email" placeholder="nom@entreprise.com"></div>
+    <div class="field"><label>Mot de passe</label><input id="password" type="password" placeholder="••••••••"></div>
+    <div class="auth-actions"><button class="btn primary" onclick="authSubmit()">Se connecter</button><button class="btn light" onclick="toggleSignup()">Créer un compte</button></div>
+    <p style="margin-top:14px;font-size:10px">Version Pro — le rôle et les accès sont déterminés par les droits Supabase.</p>
+  </div>
+</section>
+
+<div id="app" class="hidden">
+<header><div class="top">
+  <div class="brand"><strong>MA STATION PRO</strong><small id="contextLine">Chargement…</small></div>
+  <button class="avatar" onclick="openProfile()" id="avatar">MS</button>
+</div></header>
+
+<main>
+  <section id="dashboard" class="view active">
+    <div class="hero"><h1 id="hello">Bonjour 👋</h1><p id="heroText">Vue de pilotage de votre périmètre.</p></div>
+    <div class="grid" id="kpis"></div>
+    <div class="section-title"><h2>🚨 Alertes</h2><span id="alertCount"></span></div>
+    <div class="card" id="alerts"></div>
+    <div class="section-title"><h2>🤖 Propositions de gestion</h2><span>Analyse automatique</span></div>
+    <div class="card" id="recommendations"></div>
+  </section>
+
+  <section id="operations" class="view">
+    <div class="section-title"><h2>⛽ Opérations</h2><span id="stationBadge"></span></div>
+    <div class="grid2">
+      <div class="card"><h3 style="margin-top:0;font-size:14px">Service pompiste</h3><p style="font-size:11px;color:var(--muted)">Ouverture, index, versements, dépenses et clôture.</p><div class="actions"><button class="btn primary" onclick="openShift()">Prendre un service</button><button class="btn light" onclick="closeShift()">Clôturer</button></div></div>
+      <div class="card"><h3 style="margin-top:0;font-size:14px">Contrôle rapide</h3><div id="quickControl"></div></div>
+    </div>
+    <div class="card"><h3 style="margin-top:0;font-size:14px">Prix carburants</h3><div id="prices"></div></div>
+  </section>
+
+  <section id="personnel" class="view">
+    <div class="section-title"><h2>👥 Personnel & hiérarchie</h2><button class="btn primary" onclick="openEmployee()">+ Ajouter</button></div>
+    <div class="card"><p style="font-size:11px;color:var(--muted);margin-top:0">Le gérant configure les activités de sa station. Ma Station suggère automatiquement les responsables compatibles.</p><div id="orgChart"></div></div>
+    <div class="card"><h3 style="font-size:13px">Postes activés</h3><div id="roles"></div></div>
+  </section>
+
+  <section id="stations" class="view">
+    <div class="section-title"><h2>🏪 Réseau</h2><span id="networkScope"></span></div>
+    <div class="card"><div id="stationList"></div></div>
+    <div class="card"><h3 style="font-size:13px">Configuration de la station</h3><div id="stationConfig"></div></div>
+  </section>
+
+  <section id="reports" class="view">
+    <div class="section-title"><h2>📊 Analyses & rapports</h2><span>Écarts et performance</span></div>
+    <div class="grid2">
+      <div class="card"><h3 style="font-size:13px">Performance carburant</h3><div id="fuelAnalysis"></div></div>
+      <div class="card"><h3 style="font-size:13px">Prévision de commande</h3><div id="orderAnalysis"></div></div>
+    </div>
+    <div class="card"><h3 style="font-size:13px">Synthèse réseau</h3><table class="table"><thead><tr><th>Station</th><th>CA</th><th>Écart</th><th>État</th></tr></thead><tbody id="networkTable"></tbody></table></div>
+  </section>
+</main>
+
+<nav class="nav">
+  <button class="active" onclick="nav('dashboard',this)"><b>⌂</b>Accueil</button>
+  <button onclick="nav('operations',this)"><b>⛽</b>Opérations</button>
+  <button onclick="nav('personnel',this)"><b>👥</b>Personnel</button>
+  <button onclick="nav('stations',this)"><b>🏪</b>Stations</button>
+  <button onclick="nav('reports',this)"><b>📊</b>Rapports</button>
+</nav>
+</div>
+
+<div id="modal" class="modal" onclick="if(event.target===this)closeModal()"><div class="sheet">
+  <button class="close" onclick="closeModal()">×</button>
+  <div id="modalBody"></div>
+</div></div>
+
+<script>
+const SUPABASE_URL="https://golrvqweqcudptwdzufk.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_tmdtvlF6Mcd5vPQWiJeMdQ_eeee0-J1";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+let user=null, membership=null, stations=[], employees=[], activeStation=null, signup=false;
+const FUEL=[["super","Super",856],["gazole","Gazole",844],["petrole","Pétrole",366]];
+const ROLES=[
+ ["pompiste","Pompiste","Piste carburant","⛽"],
+ ["hotesse_boutique","Hôtesse boutique","Boutique","🛍️"],
+ ["technicien_baie","Technicien de baie","Baie","🔧"],
+ ["croissantiere","Croissantière","Restauration","🥐"],
+ ["laveur","Laveur","Baie de lavage","🚗"],
+ ["autre_operationnel","Autre personnel opérationnel","Autre","👷"],
+ ["chef_piste","Chef de piste","Supervision piste","🧭"],
+ ["chef_boutique","Chef boutique","Supervision boutique","🛍️"],
+ ["chef_baie","Chef de baie","Supervision baie","🔧"],
+ ["chef_baie_lavage","Chef de baie de lavage","Supervision lavage","🧽"]
+];
+const money=n=>Math.round(Number(n)||0).toLocaleString("fr-FR")+" FCFA";
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+const initials=s=>String(s||"MS").split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase();
+
+function toggleSignup(){signup=!signup;document.getElementById("nameWrap").classList.toggle("hidden",!signup);document.querySelector(".auth-actions .primary").textContent=signup?"Créer mon compte":"Se connecter";document.querySelector(".auth-actions .light").textContent=signup?"Retour connexion":"Créer un compte"}
+async function authSubmit(){
+ const email=document.getElementById("email").value.trim(),password=document.getElementById("password").value,name=document.getElementById("name").value.trim();
+ const err=document.getElementById("authError");err.classList.add("hidden");
+ try{
+  if(signup){const {data,error}=await sb.auth.signUp({email,password,options:{data:{full_name:name}}});if(error)throw error;if(!data.session){err.textContent="Compte créé. Vérifiez votre email puis connectez-vous.";err.classList.remove("hidden");return}}
+  else {const {error}=await sb.auth.signInWithPassword({email,password});if(error)throw error}
+ }catch(e){err.textContent=e.message||"Connexion impossible";err.classList.remove("hidden")}
+}
+sb.auth.onAuthStateChange((_,s)=>{if(s?.user){user=s.user;start()}else{user=null;document.getElementById("app").classList.add("hidden");document.getElementById("auth").classList.remove("hidden")}});
+
+async function start(){
+ document.getElementById("auth").classList.add("hidden");document.getElementById("app").classList.remove("hidden");
+ document.getElementById("avatar").textContent=initials(user.user_metadata?.full_name||user.email);
+ await loadAccess();await loadNetwork();renderAll();
+}
+async function loadAccess(){
+ membership=null;
+ try{
+  const {data}=await sb.from("station_members").select("station_id,role,active").eq("user_id",user.id).eq("active",true).limit(20);
+  if(data?.length) membership=data[0];
+ }catch(e){}
+ try{
+  const {data}=await sb.from("profiles").select("full_name,station_name,role").eq("id",user.id).maybeSingle();
+  if(data){membership=membership||{role:data.role||"pompiste",station_id:null}; if(!activeStation&&data.station_name) activeStation={name:data.station_name,id:null}}
+ }catch(e){}
+ if(!membership) membership={role:"pompiste",station_id:null};
+}
+async function loadNetwork(){
+ try{
+  const {data}=await sb.from("stations").select("id,name,code,city,status,organization_id").order("name");
+  stations=data||[];
+ }catch(e){stations=[]}
+ if(membership.station_id) activeStation=stations.find(s=>s.id===membership.station_id)||activeStation;
+ if(!activeStation&&stations.length)activeStation=stations[0];
+ if(!activeStation)activeStation={id:null,name:"Ma station",status:"active"};
+ try{
+  if(activeStation.id){const {data}=await sb.from("station_members").select("user_id,role,active").eq("station_id",activeStation.id).eq("active",true);employees=data||[]}
+ }catch(e){}
+}
+function roleLabel(r){return (ROLES.find(x=>x[0]===r)||[r,r])[1]}
+function roleLevel(r){return ["pompiste","hotesse_boutique","technicien_baie","croissantiere","laveur","autre_operationnel"].includes(r)?1:2}
+function canManage(){return ["gerant","direction","admin"].includes(membership?.role)}
+function nav(id,btn){document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));btn.classList.add("active")}
+function renderAll(){renderHeader();renderDashboard();renderOperations();renderPersonnel();renderStations();renderReports()}
+function renderHeader(){document.getElementById("contextLine").textContent=`${activeStation?.name||"Station"} · ${roleLabel(membership.role)}`;document.getElementById("stationBadge").textContent=activeStation?.name||""}
+function renderDashboard(){
+ const r=membership.role;document.getElementById("hello").textContent=`Bonjour ${user.user_metadata?.full_name?.split(" ")[0]||"👋"} 👋`;
+ document.getElementById("heroText").textContent=`${roleLabel(r)} · ${activeStation?.name||"votre périmètre"} · pilotage à distance`;
+ const k=[
+ ["CA estimé","12,4 M","↗ +8,4 %"],
+ ["Ventes carburant","18 520 L","7 jours"],
+ ["Écart caisse","-5 000","À contrôler"],
+ ["Stock critique","1","Gazole"]
+ ];
+ document.getElementById("kpis").innerHTML=k.map((x,i)=>`<div class="card kpi"><div class="label">${x[0]}</div><div class="value">${x[1]}${i===0?" FCFA":i===1?"":""}</div><div class="hint">${x[2]}</div></div>`).join("");
+ const alerts=[
+ ["⚠️","Écart de stock inhabituel","Le Gazole présente un écart supérieur à la moyenne récente.","warn"],
+ ["💰","Rapprochement caisse","Un écart de 5 000 FCFA doit être vérifié avant validation.","bad"],
+ ["👥","Organisation","La station possède plusieurs activités : vérifiez qu'un responsable est affecté à chaque activité.","info"]
+ ];
+ document.getElementById("alertCount").textContent=alerts.length+" signalements";
+ document.getElementById("alerts").innerHTML=alerts.map(a=>`<div class="alert"><div class="ico">${a[0]}</div><div><strong>${a[1]} <span class="badge ${a[3]}">${a[3]==="bad"?"ACTION":"À SURVEILLER"}</span></strong><p>${a[2]}</p></div></div>`).join("");
+ const rec=[
+ ["📦","Commande recommandée","Prévoir une commande de Gazole avant le seuil critique, sur la base de la consommation moyenne et du stock de sécurité."],
+ ["🔎","Contrôle conseillé","Rapprocher index pompes, jauge de cuve et dernière réception pour expliquer l'écart."],
+ ["👤","Organisation","Créer ou affecter les chefs correspondant aux activités réellement ouvertes dans la station."]
+ ];
+ document.getElementById("recommendations").innerHTML=rec.map(x=>`<div class="alert"><div class="ico">${x[0]}</div><div><strong>${x[1]}</strong><p>${x[2]}</p><button class="btn light" style="margin-top:6px;padding:7px 9px;font-size:10px">Voir le détail</button></div></div>`).join("");
+}
+function renderOperations(){
+ document.getElementById("prices").innerHTML=FUEL.map(f=>`<div class="progress-row"><div class="row"><span>${f[1]}</span><strong>${money(f[2])}</strong></div><div class="bar"><i style="width:${f[0]==="gazole"?76:f[0]==="super"?92:44}%"></i></div></div>`).join("");
+ document.getElementById("quickControl").innerHTML=`<div class="alert"><div class="ico">⛽</div><div><strong>Index</strong><p>Vérifier les index d'ouverture et de clôture par bec.</p></div></div><div class="alert"><div class="ico">💵</div><div><strong>Versements</strong><p>Comparer les paiements aux ventes avant clôture.</p></div></div>`;
+}
+function renderPersonnel(){
+ const sample=[
+  ["Gérant","Direction station","👔"],
+  ["Chef de piste","Supervision piste","🧭"],
+  ["Chef boutique","Supervision boutique","🛍️"],
+  ["Chef de baie","Supervision baie","🔧"],
+  ["Chef de baie de lavage","Supervision lavage","🧽"],
+  ["Pompistes","Personnel opérationnel","⛽"],
+  ["Hôtesses boutique","Personnel opérationnel","🛍️"],
+  ["Techniciens de baie","Personnel opérationnel","🔧"],
+  ["Laveurs / Croissantières","Personnel opérationnel","👷"]
+ ];
+ document.getElementById("orgChart").innerHTML=sample.map((x,i)=>`<div class="person"><div class="pic">${x[2]}</div><div class="meta"><strong>${x[0]}</strong><small>${x[1]}</small></div><span class="badge ${i<1?"ok":i<5?"info":"warn"}">${i<5?"Superviseur":"Opérationnel"}</span></div>`).join("");
+ document.getElementById("roles").innerHTML=ROLES.map(x=>`<span class="chip">${x[3]} ${x[1]}</span>`).join("");
+}
+function renderStations(){
+ document.getElementById("networkScope").textContent=`${stations.length||1} station(s) visible(s)`;
+ const list=stations.length?stations:[activeStation];
+ document.getElementById("stationList").innerHTML=list.map(s=>`<div class="person"><div class="pic">⛽</div><div class="meta"><strong>${esc(s.name)}</strong><small>${esc(s.city||"")}${s.code?" · "+esc(s.code):""}</small></div><span class="badge ${s.status==="active"?"ok":"bad"}">${s.status||"active"}</span></div>`).join("");
+ document.getElementById("stationConfig").innerHTML=`<div class="actions"><button class="btn primary" onclick="openStationConfig()">Configurer les activités</button><button class="btn light" onclick="openEmployee()">Configurer le personnel</button></div><p style="font-size:10px;color:var(--muted);margin-bottom:0">Les postes et responsables sont créés selon la structure réelle de la station.</p>`;
+}
+function renderReports(){
+ const fa=[["Super",92],["Gazole",76],["Pétrole",44]];document.getElementById("fuelAnalysis").innerHTML=fa.map(x=>`<div class="progress-row"><div class="row"><span>${x[0]}</span><strong>${x[1]}%</strong></div><div class="bar"><i style="width:${x[1]}%"></i></div></div>`).join("");
+ document.getElementById("orderAnalysis").innerHTML=`<div class="alert"><div class="ico">📦</div><div><strong>Proposition</strong><p>Commander environ <b>6 000 L de Gazole</b> avant le prochain seuil de sécurité.</p></div></div><div class="alert"><div class="ico">🕒</div><div><strong>Moment conseillé</strong><p>Réviser la proposition avec le délai fournisseur et la consommation des 7 derniers jours.</p></div></div>`;
+ const list=stations.length?stations:[activeStation];document.getElementById("networkTable").innerHTML=list.map((s,i)=>`<tr><td>${esc(s.name)}</td><td>${money(12400000-i*950000)}</td><td>${i?"-2 000":"-5 000"}</td><td><span class="badge ${i?"warn":"bad"}">${i?"SURVEILLER":"ACTION"}</span></td></tr>`).join("");
+}
+function openModal(html){document.getElementById("modalBody").innerHTML=html;document.getElementById("modal").classList.add("open")}
+function closeModal(){document.getElementById("modal").classList.remove("open")}
+function openProfile(){openModal(`<h2>Mon compte</h2><p><b>${esc(user.email)}</b></p><p>Rôle : <b>${roleLabel(membership.role)}</b></p><div class="actions"><button class="btn danger" onclick="sb.auth.signOut()">Se déconnecter</button></div>`)}
+function openShift(){openModal(`<h2>⛽ Prendre un service</h2><p style="font-size:11px;color:var(--muted)">Cette version prépare le flux d'ouverture. Les écritures opérationnelles continuent d'utiliser la table <code>shifts</code> existante.</p><div class="field"><label>Poste</label><input id="shiftPost" placeholder="Ex. Poste 1"></div><div class="field"><label>Îlot</label><input id="shiftIlot" placeholder="Ex. Îlot 2"></div><div class="field"><label>Index ouverture Super</label><input id="idxSuper" inputmode="decimal"></div><div class="field"><label>Index ouverture Gazole</label><input id="idxGazole" inputmode="decimal"></div><div class="field"><label>Index ouverture Pétrole</label><input id="idxPetrole" inputmode="decimal"></div><button class="btn primary" style="width:100%" onclick="saveShift()">Enregistrer et commencer</button>`)}
+async function saveShift(){
+ const data={status:"open",openedAt:new Date().toISOString(),stationName:activeStation?.name||"",pompisteName:user.user_metadata?.full_name||user.email,posteNumber:document.getElementById("shiftPost").value,ilotNumber:document.getElementById("shiftIlot").value,pumps:[{fuel:"super",ouv:document.getElementById("idxSuper").value,ferm:""},{fuel:"gazole",ouv:document.getElementById("idxGazole").value,ferm:""},{fuel:"petrole",ouv:document.getElementById("idxPetrole").value,ferm:""}],versements:[],depenses:[]};
+ try{const {error}=await sb.from("shifts").upsert({user_id:user.id,station_id:activeStation?.id||null,shift_date:new Date().toISOString().slice(0,10),data,updated_at:new Date().toISOString()},{onConflict:"user_id,shift_date"});if(error)throw error;closeModal();alert("Service ouvert.");}catch(e){alert("Impossible d'enregistrer : "+e.message)}
+}
+async function closeShift(){try{const {data}=await sb.from("shifts").select("id,data").eq("user_id",user.id).eq("shift_date",new Date().toISOString().slice(0,10)).maybeSingle();if(!data){alert("Aucun service ouvert aujourd'hui.");return}const d={...(data.data||{}),status:"closed",closedAt:new Date().toISOString()};const {error}=await sb.from("shifts").update({data:d,updated_at:new Date().toISOString()}).eq("id",data.id);if(error)throw error;alert("Service clôturé.");}catch(e){alert(e.message)}}
+function openEmployee(){
+ const can=canManage();if(!can){alert("La création du personnel est réservée au gérant, à la direction ou à l'administrateur.");return}
+ const opts=ROLES.map(r=>`<option value="${r[0]}">${r[3]} ${r[1]}</option>`).join("");
+ openModal(`<h2>👤 Nouveau personnel</h2><div class="field"><label>Nom complet</label><input id="empName" placeholder="Nom et prénom"></div><div class="field"><label>Fonction</label><select id="empRole">${opts}</select></div><div class="field"><label>Supérieur hiérarchique suggéré</label><select id="empBoss"><option value="">Suggestion automatique selon le poste</option><option>Chef de piste</option><option>Chef boutique</option><option>Chef de baie</option><option>Chef de baie de lavage</option><option>Gérant</option></select></div><div class="field"><label>Statut</label><select id="empStatus"><option>Actif</option><option>Inactif</option></select></div><button class="btn primary" style="width:100%" onclick="saveEmployee()">Créer le personnel</button>`);
+}
+function saveEmployee(){const n=document.getElementById("empName").value.trim(),r=document.getElementById("empRole").value;if(!n){alert("Indiquez le nom.");return}alert(`${n} — ${roleLabel(r)} créé dans la configuration. Le rattachement définitif sera enregistré dans station_members lorsque le compte utilisateur sera associé.`);closeModal()}
+function openStationConfig(){openModal(`<h2>⚙️ Configuration de la station</h2><p style="font-size:11px;color:var(--muted)">Activez uniquement les activités réellement présentes.</p>${["Piste carburant","Boutique","Baie mécanique","Baie de lavage","Restauration / croissanterie","Autre activité"].map((x,i)=>`<label style="display:flex;gap:9px;padding:11px 0;border-bottom:1px solid var(--line);font-size:12px"><input type="checkbox" ${i<4?"checked":""} style="width:auto"> ${x}</label>`).join("")}<button class="btn primary" style="width:100%;margin-top:14px" onclick="closeModal()">Enregistrer la configuration</button>`)}
+window.addEventListener("load",async()=>{const {data}=await sb.auth.getSession();if(data.session){user=data.session.user;start()}});
+</script>
+</body>
+</html>

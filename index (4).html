@@ -1,0 +1,1994 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Ma Station — Suivi de service</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#14171A; --surface:#1E2226; --surface-2:#262B30; --line:#343B41;
+    --cream:#F2EFE9; --muted:#8C949C; --amber:#FFB000; --amber-dim:#8a6000;
+    --super:#E8602C; --gazole:#3FA56A; --petrole:#5C8AC9;
+    --bad:#E5484D; --good:#3FA56A; --radius:14px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ background:var(--bg); color:var(--cream); font-family:'Manrope',sans-serif; min-height:100vh; padding-bottom:80px; -webkit-tap-highlight-color:transparent; }
+  .mono{ font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums; }
+  .hidden{ display:none !important; }
+
+  #authScreen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+    background: radial-gradient(circle at 50% 15%, #262218 0%, #14171A 55%, #0B0D0F 100%);
+    position:relative; overflow:hidden;
+  }
+  #authScreen::before{
+    content:''; position:absolute; top:-20%; left:50%; transform:translateX(-50%);
+    width:340px; height:340px; border-radius:50%;
+    background:radial-gradient(circle, rgba(255,176,0,.16) 0%, rgba(255,176,0,0) 70%);
+    pointer-events:none;
+  }
+  .auth-box{ width:100%; max-width:360px; position:relative; z-index:1; }
+  .auth-logo{ text-align:center; margin-bottom:14px; opacity:0; animation: authLogoIn .7s cubic-bezier(.2,.8,.2,1) .1s forwards; }
+  .auth-logo img{ height:88px; filter: drop-shadow(0 8px 24px rgba(255,176,0,.25)); }
+  @keyframes authLogoIn{
+    from{ opacity:0; transform: translateY(-14px) scale(.92); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+  .auth-welcome{ text-align:center; opacity:0; animation: authFadeUp .6s ease .3s forwards; }
+  .auth-welcome h1{ font-size:21px; font-weight:800; margin:0 0 4px; }
+  .auth-welcome h1 .wave{ display:inline-block; animation: wave 1.8s ease-in-out .9s 1; transform-origin: 70% 70%; }
+  @keyframes wave{
+    0%,100%{ transform:rotate(0deg); } 15%{ transform:rotate(14deg); } 30%{ transform:rotate(-8deg); }
+    45%{ transform:rotate(14deg); } 60%{ transform:rotate(-4deg); } 75%{ transform:rotate(10deg); }
+  }
+  .auth-sub{ text-align:center; font-size:13.5px; color:var(--muted); margin-bottom:26px; }
+  @keyframes authFadeUp{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+  .auth-field{ margin-bottom:13px; opacity:0; animation: authFadeUp .55s ease forwards; }
+  .auth-field:nth-of-type(1){ animation-delay:.4s; }
+  .auth-field:nth-of-type(2){ animation-delay:.48s; }
+  .auth-field label{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .auth-field input{
+    width:100%; background:rgba(30,34,38,.8); backdrop-filter: blur(6px);
+    border:1px solid var(--line); border-radius:12px; padding:14px; color:var(--cream); font-size:15px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .auth-field input:focus{ outline:none; border-color:var(--amber); box-shadow: 0 0 0 3px rgba(255,176,0,.15); }
+  .auth-btn{
+    width:100%; padding:15px; border-radius:12px; border:none;
+    background: linear-gradient(135deg, #FFC53D, var(--amber));
+    color:#1A1300; font-weight:800; font-size:15px; cursor:pointer; margin-top:8px;
+    box-shadow: 0 10px 28px rgba(255,176,0,.28);
+    opacity:0; animation: authFadeUp .55s ease .56s forwards;
+    transition: transform .12s ease;
+  }
+  .auth-btn:active{ transform: scale(.97); }
+  .auth-switch{ text-align:center; margin-top:18px; font-size:13px; color:var(--muted); opacity:0; animation: authFadeUp .55s ease .64s forwards; }
+  .auth-switch a{ color:var(--amber); cursor:pointer; text-decoration:none; font-weight:600; }
+  .auth-error{ background:rgba(229,72,77,.1); border:1px solid rgba(229,72,77,.35); color:var(--bad); font-size:12.5px; padding:9px 11px; border-radius:8px; margin-bottom:12px; }
+
+  header.top{ position:sticky; top:0; z-index:10; background:linear-gradient(180deg,#14171A 85%,rgba(20,23,26,0)); padding:16px 18px 8px; }
+  .brand{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .brand img{ height:30px; }
+  .brand .user-chip{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--amber); background:rgba(255,176,0,.1); border:1px solid var(--amber-dim); padding:3px 8px; border-radius:6px; cursor:pointer; white-space:nowrap; }
+  .status-line{ display:flex; align-items:center; gap:6px; margin-top:6px; font-size:12px; color:var(--muted); }
+  .status-dot{ width:8px; height:8px; border-radius:50%; }
+  .status-dot.open{ background:var(--good); }
+  .status-dot.closed{ background:var(--muted); }
+  .status-dot.none{ background:var(--amber); }
+
+  main{ padding:6px 16px 20px; max-width:560px; margin:0 auto; }
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px; }
+  .panel h2{ font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin:0 0 12px; font-weight:700; }
+  .panel h2 small{ text-transform:none; letter-spacing:0; opacity:.8; font-weight:500; }
+  .lead{ text-align:center; padding:26px 16px; }
+  .lead .ic{ font-size:38px; margin-bottom:8px; }
+  .lead h1{ font-size:18px; margin:0 0 6px; }
+  .lead p{ color:var(--muted); font-size:13px; margin:0; line-height:1.5; }
+
+  .fuel-group{ margin-bottom:16px; }
+  .fuel-group:last-child{ margin-bottom:0; }
+  .fuel-group-head{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .fuel-group-head .fdot{ width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+  .fuel-group-head .fname{ flex:1; font-size:14px; font-weight:800; }
+  .pump-card{ background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; }
+  .pump-card .plabel-row{ font-size:12.5px; font-weight:700; margin-bottom:8px; }
+  .led-input{ background:#0E1012; border:1px solid var(--line); border-radius:8px; padding:10px 10px; color:var(--amber); font-family:'JetBrains Mono',monospace; font-size:17px; font-weight:700; width:100%; text-align:right; }
+  .led-input::placeholder{ color:#4a3a10; }
+  .led-input:focus{ outline:none; border-color:var(--amber-dim); }
+  .field-label{ font-size:10.5px; color:var(--muted); margin-bottom:3px; display:block; }
+
+  .price-row{ display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); }
+  .price-row:last-child{ border-bottom:none; }
+  .price-row .dot{ width:10px; height:10px; border-radius:50%; }
+  .price-row .lbl{ flex:1; font-size:13px; font-weight:600; }
+  .price-input{ width:90px; background:var(--surface-2); border:1px solid var(--line); border-radius:7px; padding:7px; color:var(--cream); font-family:'JetBrains Mono',monospace; font-size:13px; text-align:center; }
+
+  .gaz-card{ background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; }
+  .gaz-card .gtitle{ font-weight:800; font-size:14px; margin-bottom:8px; }
+  .stock-row{ display:flex; gap:8px; }
+  .stock-row .field{ flex:1; }
+
+  .save-btn{ width:100%; padding:14px; border-radius:10px; border:none; background:var(--amber); color:#1A1300; font-weight:800; font-size:14.5px; margin-top:4px; cursor:pointer; }
+  .save-btn.ghost{ background:transparent; border:1px solid var(--line); color:var(--cream); }
+  .save-btn.danger{ background:transparent; border:1px solid rgba(229,72,77,.4); color:var(--bad); }
+
+  .vtype-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:12px; }
+  .optype-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:12px; }
+  .vtype-btn{ background:var(--surface-2); border:1px solid var(--line); border-radius:9px; padding:9px 2px; text-align:center; cursor:pointer; }
+  .vtype-btn .ic{ font-size:17px; display:block; }
+  .vtype-btn .lb{ font-size:9.5px; color:var(--muted); margin-top:3px; display:block; font-weight:600; }
+  .vtype-btn.active{ border-color:var(--amber); background:rgba(255,176,0,.1); }
+  .vtype-btn.active .lb{ color:var(--amber); }
+  .bons-grid{ display:flex; gap:8px; margin-bottom:10px; }
+  .bons-field{ flex:1; text-align:center; }
+  .bons-field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:4px; }
+  .bons-field input{ width:100%; background:#0E1012; border:1px solid var(--line); border-radius:7px; padding:7px; color:var(--cream); font-family:'JetBrains Mono',monospace; text-align:center; font-size:14px; }
+  .note-input{ width:100%; background:#0E1012; border:1px solid var(--line); border-radius:8px; padding:9px 10px; color:var(--cream); font-size:13px; margin-bottom:10px; }
+  .note-input::placeholder{ color:var(--muted); }
+  .addbtn{ background:none; border:1px solid var(--line); color:var(--muted); font-size:11px; padding:4px 8px; border-radius:6px; cursor:pointer; }
+
+  .list-item{ display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .list-item:last-child{ border-bottom:none; }
+  .list-item .ic{ font-size:17px; width:24px; text-align:center; }
+  .list-item .info{ flex:1; min-width:0; }
+  .list-item .info .t{ font-size:13px; font-weight:700; }
+  .list-item .info .s{ font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .list-item .amt{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; }
+  .list-item .del{ background:none; border:none; color:var(--muted); font-size:15px; cursor:pointer; padding:2px 4px; }
+  .credit .amt{ color:var(--petrole); }
+
+  .summary-line{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+  .summary-line:last-child{ border-bottom:none; }
+  .summary-line .v{ font-family:'JetBrains Mono',monospace; font-weight:700; }
+  .summary-line.total{ font-size:15px; padding-top:12px; }
+  .summary-line.total .v{ color:var(--amber); font-size:16px; }
+
+  .situation-box{ text-align:center; padding:22px 10px; border-radius:var(--radius); border:1px solid var(--line); margin-bottom:14px; }
+  .situation-box .tag{ font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); font-weight:700; }
+  .situation-box .amount{ font-family:'JetBrains Mono',monospace; font-size:32px; font-weight:800; margin:6px 0 2px; }
+  .situation-box.ok{ background:rgba(63,165,106,.08); border-color:rgba(63,165,106,.35); }
+  .situation-box.ok .amount{ color:var(--good); }
+  .situation-box.bad{ background:rgba(229,72,77,.08); border-color:rgba(229,72,77,.35); }
+  .situation-box.bad .amount{ color:var(--bad); }
+  .situation-box .hint{ font-size:12px; color:var(--muted); }
+
+  .tabs{ position:fixed; bottom:0; left:0; right:0; z-index:20; background:var(--surface); border-top:1px solid var(--line); display:flex; padding:6px 6px calc(6px + env(safe-area-inset-bottom)); }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none; color:var(--muted); font-family:'Manrope',sans-serif; font-size:10.5px; font-weight:600; padding:7px 2px; border-radius:10px; cursor:pointer; }
+  .tab.active{ color:var(--amber); background:rgba(255,176,0,.08); }
+  .tab .ic{ font-size:18px; line-height:1; }
+
+  .view{ display:none; }
+  .view.active{ display:block; animation:fade .18s ease; }
+  @keyframes fade{ from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:translateY(0)} }
+
+  .status-msg{ text-align:center; font-size:11.5px; color:var(--muted); margin-top:8px; min-height:14px; }
+  .empty{ text-align:center; color:var(--muted); font-size:13px; padding:24px 10px; }
+
+  .hist-item{ display:flex; align-items:center; gap:10px; padding:12px; background:var(--surface-2); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; cursor:pointer; }
+  .hist-item .hd{ flex:1; }
+  .hist-item .hd .date{ font-size:13.5px; font-weight:700; text-transform:capitalize; }
+  .hist-item .hd .sub{ font-size:11px; color:var(--muted); margin-top:2px; }
+  .hist-item .he{ font-family:'JetBrains Mono',monospace; font-weight:800; font-size:14px; }
+  .hist-item .he.good{ color:var(--good); }
+  .hist-item .he.bad{ color:var(--bad); }
+
+  .month-recap{ background:linear-gradient(135deg, rgba(255,176,0,.12), rgba(255,176,0,.02)); border:1px solid var(--amber-dim); border-radius:var(--radius); padding:16px; margin-bottom:16px; }
+  .month-recap h2{ color:var(--amber); }
+  .back-link{ display:inline-flex; align-items:center; gap:5px; color:var(--muted); font-size:13px; margin-bottom:10px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<!-- ============== ÉCRAN DE CONNEXION ============== -->
+<div id="authScreen">
+  <div class="auth-box">
+    <div class="auth-logo"><img src="fichier_00000000c0e871f4ac5a2f1708c3fec5.png" alt="Ma Station Service"></div>
+    <div class="auth-welcome">
+      <h1 id="authWelcomeTitle">Bienvenue <span class="wave">👋</span></h1>
+    </div>
+    <div class="auth-sub" id="authSub">Connectez-vous pour accéder à votre service</div>
+    <div id="authError" class="auth-error hidden"></div>
+    <div id="nameField" class="auth-field hidden">
+      <label>Votre nom</label>
+      <input type="text" id="authName" placeholder="Ex: Jean Mballa">
+    </div>
+    <div class="auth-field">
+      <label>📧 Email</label>
+      <input type="email" id="authEmail" placeholder="vous@exemple.com">
+    </div>
+    <div class="auth-field">
+      <label>🔒 Mot de passe</label>
+      <input type="password" id="authPassword" placeholder="••••••••">
+    </div>
+    <button class="auth-btn" id="authSubmitBtn" onclick="handleAuthSubmit()">Se connecter</button>
+    <div class="auth-switch">
+      <span id="authSwitchText">Pas encore de compte ?</span>
+      <a onclick="toggleAuthMode()" id="authSwitchLink">Créer un compte</a>
+    </div>
+  </div>
+</div>
+
+<!-- ============== APP POMPISTE ============== -->
+<div id="appRoot" class="hidden">
+<header class="top">
+  <div class="brand">
+    <img src="fichier_00000000c0e871f4ac5a2f1708c3fec5.png" alt="Ma Station Service">
+    <span class="user-chip mono" id="userChip" onclick="signOut()">⎋ Déconnexion</span>
+  </div>
+  <div class="status-line"><span class="status-dot" id="statusDot"></span><span id="statusText">—</span></div>
+  <div class="status-line hidden" id="postInfoLine"></div>
+</header>
+
+<main>
+
+  <!-- ---------- OUVERTURE DU POSTE ---------- -->
+  <section class="view" id="view-ouverture">
+    <div class="lead">
+      <div class="ic">🌅</div>
+      <h1>Ouverture du poste</h1>
+      <p>Renseignez les index et stocks de départ. Une seule fois, au début de votre service.</p>
+    </div>
+    <div class="panel">
+      <h2>Informations du poste</h2>
+      <select class="note-input" id="infoStation"></select>
+      <input class="note-input hidden" id="infoStationNew" placeholder="Nom de la nouvelle station">
+      <input class="note-input" id="infoPompiste" placeholder="Votre nom">
+      <div class="stock-row">
+        <div class="field"><span class="field-label">Numéro du poste</span><input class="note-input" style="margin-bottom:0" id="infoPoste" placeholder="Ex: 2"></div>
+        <div class="field"><span class="field-label">Numéro de l'îlot</span><input class="note-input" style="margin-bottom:0" id="infoIlot" placeholder="Ex: A"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Index d'ouverture — carburants</h2>
+      <div id="ouvPumpCards"></div>
+    </div>
+    <div class="panel">
+      <h2>Stock d'ouverture — gaz</h2>
+      <div id="ouvGazCards"></div>
+    </div>
+    <div class="panel">
+      <h2>Prix (vérifier avant de démarrer)</h2>
+      <div id="priceFuels"></div>
+    </div>
+    <button class="save-btn" onclick="openShift()">✓ Enregistrer l'ouverture</button>
+    <div class="status-msg" id="ouvStatusMsg"></div>
+  </section>
+
+  <!-- ---------- SERVICE EN COURS ---------- -->
+  <section class="view" id="view-service">
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">⛽</div>
+      <h1>Poste ouvert</h1>
+      <p id="serviceSubtext">Ajoutez vos versements au fur et à mesure. Pas besoin de saisir les ventes.</p>
+    </div>
+    <div class="panel">
+      <h2>Nouveau versement</h2>
+      <div class="vtype-grid" id="vtypeGrid"></div>
+      <div id="vExtraFields"></div>
+      <input class="note-input" id="vNote" placeholder="Note (facultatif, ex: nom du client)">
+      <button class="save-btn ghost" id="addVersementBtn" onclick="addVersement()">+ Ajouter ce versement</button>
+      <button class="save-btn ghost hidden" id="cancelEditBtn" onclick="cancelEditVersement()" style="color:var(--bad);border-color:rgba(229,72,77,.35)">✕ Annuler la modification</button>
+    </div>
+    <div class="panel">
+      <h2>Versements du jour <span class="badge mono" id="vCount"></span></h2>
+      <div id="vList"></div>
+    </div>
+    <div class="panel">
+      <h2>Nouvelle dépense</h2>
+      <input class="note-input" id="depMotif" placeholder="Motif (ex: achat sucre, café, matériel...)">
+      <input class="led-input" style="margin-bottom:10px" id="depMontant" inputmode="decimal" placeholder="Montant (FCFA)">
+      <button class="save-btn ghost" onclick="addDepense()" style="color:var(--bad);border-color:rgba(229,72,77,.3)">+ Ajouter cette dépense</button>
+    </div>
+    <div class="panel">
+      <h2>Dépenses du jour <span class="badge mono" id="depCount"></span></h2>
+      <div id="depList"></div>
+    </div>
+    <button class="save-btn" id="closeServiceBtn" onclick="goToClosing()">🔒 Clôturer le service</button>
+    <button class="save-btn hidden" id="recalcSituationBtn" onclick="computeAndShowSituation()">↻ Revoir la situation (index déjà enregistrés)</button>
+    <button class="save-btn ghost hidden" id="editClosingBtn" onclick="goToClosing()">✎ Modifier les index de clôture</button>
+  </section>
+
+  <!-- ---------- CLÔTURE : SAISIE DES INDEX ---------- -->
+  <section class="view" id="view-cloture">
+    <div class="back-link" onclick="showStage('service')">← Retour au service</div>
+    <div class="lead">
+      <div class="ic">🌇</div>
+      <h1>Clôture du poste</h1>
+      <p>Renseignez les index et stocks de fin. Le système calcule tout automatiquement.</p>
+    </div>
+    <div class="panel">
+      <h2>Index de clôture — carburants</h2>
+      <div id="fermPumpCards"></div>
+    </div>
+    <div class="panel">
+      <h2>Stock de clôture — gaz</h2>
+      <div id="fermGazCards"></div>
+    </div>
+    <button class="save-btn" onclick="computeAndShowSituation()">Calculer la situation</button>
+  </section>
+
+  <!-- ---------- SITUATION FINALE ---------- -->
+  <section class="view" id="view-situation">
+    <div class="panel" id="situInfoBox"></div>
+    <div id="situationBox"></div>
+    <div class="panel"><h2>Ventes carburants</h2><div id="sumFuels"></div></div>
+    <div class="panel"><h2>Ventes gaz</h2><div id="sumGaz"></div></div>
+    <div class="panel"><h2>Versements par moyen</h2><div id="sumPay"></div></div>
+    <div class="panel"><h2>Dépenses</h2><div id="sumDepenses"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="sumFinal"></div></div>
+    <div class="panel" id="signaturePanel">
+      <h2>Signature du pompiste</h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">En tapant votre nom, vous certifiez l'exactitude des informations ci-dessus.</p>
+      <input class="note-input" id="signatureInput" placeholder="Tapez votre nom complet pour signer">
+      <div class="status-msg" id="signatureMsg"></div>
+    </div>
+    <button class="save-btn" id="closeShiftBtn" onclick="closeShift()">🔒 Clôturer le poste (définitif)</button>
+    <button class="save-btn ghost" onclick="shareWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,.35)">📲 Partager via WhatsApp</button>
+    <button class="save-btn ghost" id="backToVersementBtn" onclick="backToVersementFromSituation()">← Ajouter un versement oublié</button>
+    <button class="save-btn ghost" id="backToClotureBtn" onclick="showStage('cloture')">← Corriger les index</button>
+    <div class="status-msg" id="statusMsg"></div>
+  </section>
+
+  <!-- ---------- HISTORIQUE ---------- -->
+  <section class="view" id="view-historique">
+    <div class="month-recap">
+      <h2 id="monthTitle">Récapitulatif du mois</h2>
+      <div id="monthRecap"></div>
+    </div>
+    <div class="panel">
+      <h2>Journées archivées</h2>
+      <div id="histList"></div>
+    </div>
+  </section>
+
+  <!-- ---------- DÉTAIL D'UNE JOURNÉE ARCHIVÉE ---------- -->
+  <section class="view" id="view-detail">
+    <div class="back-link" onclick="showStage('historique')">← Retour à l'historique</div>
+    <div class="panel" id="detailInfoBox"></div>
+    <div id="detailBox"></div>
+    <div class="panel"><h2>Ventes carburants</h2><div id="detailFuels"></div></div>
+    <div class="panel"><h2>Ventes gaz</h2><div id="detailGaz"></div></div>
+    <div class="panel"><h2>Versements par moyen</h2><div id="detailPay"></div></div>
+    <div class="panel"><h2>Détail des versements</h2><div id="detailVersementsList"></div></div>
+    <div class="panel"><h2>Dépenses</h2><div id="detailDepenses"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="detailFinal"></div></div>
+  </section>
+
+</main>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="service" onclick="switchTab('service')"><span class="ic">⛽</span>Service</button>
+  <button class="tab" data-tab="historique" onclick="switchTab('historique')"><span class="ic">📅</span>Historique</button>
+</nav>
+
+</div>
+
+<!-- ============== APP SUPERVISEUR ============== -->
+<div id="supervisorRoot" class="hidden">
+<header class="top">
+  <div class="brand">
+    <img src="fichier_00000000c0e871f4ac5a2f1708c3fec5.png" alt="Ma Station Service">
+    <span class="user-chip mono" onclick="signOut()">⎋ Déconnexion</span>
+  </div>
+  <div class="status-line" id="supStationLine">Superviseur</div>
+</header>
+
+<main>
+  <section class="view active" id="view-sup-station-setup">
+    <div class="lead">
+      <div class="ic">🏢</div>
+      <h1>Configuration</h1>
+      <p>Renseignez le nom exact de la station à superviser — identique à celui utilisé par vos pompistes.</p>
+    </div>
+    <div class="panel">
+      <input class="note-input" id="supStationInput" placeholder="Nom de la station">
+      <button class="save-btn" onclick="saveSupervisorStation()">✓ Enregistrer</button>
+      <div class="status-msg" id="supSetupMsg"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-sup-list">
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">👥</div>
+      <h1>Pompistes — <span id="supStationName"></span></h1>
+      <p>Situation du jour, par pompiste. Touchez un nom pour voir le détail, ou "Historique" pour les journées passées.</p>
+    </div>
+    <div class="panel">
+      <h2>Aujourd'hui <button class="addbtn" onclick="loadSupervisorPompistes()">↻ Actualiser</button></h2>
+      <div id="supPompisteList"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-sup-history">
+    <div class="back-link" onclick="showSupStage('list')">← Retour à la liste</div>
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">📅</div>
+      <h1 id="supHistoryTitle">Historique</h1>
+      <p>Journées clôturées, les plus récentes en premier.</p>
+    </div>
+    <div class="panel">
+      <div id="supHistoryList"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-sup-detail">
+    <div class="back-link" id="supDetailBackLink" onclick="showSupStage('list')">← Retour à la liste</div>
+    <div class="panel" id="supDetailInfoBox"></div>
+    <div id="supDetailBox"></div>
+    <div class="panel"><h2>Ventes carburants</h2><div id="supDetailFuels"></div></div>
+    <div class="panel"><h2>Ventes gaz</h2><div id="supDetailGaz"></div></div>
+    <div class="panel"><h2>Versements par moyen</h2><div id="supDetailPay"></div></div>
+    <div class="panel"><h2>Détail des versements</h2><div id="supDetailVersementsList"></div></div>
+    <div class="panel"><h2>Dépenses</h2><div id="supDetailDepenses"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="supDetailFinal"></div></div>
+  </section>
+</main>
+</div>
+
+<!-- ============== APP BOUTIQUE ============== -->
+<div id="boutiqueRoot" class="hidden">
+<header class="top">
+  <div class="brand">
+    <img src="fichier_00000000c0e871f4ac5a2f1708c3fec5.png" alt="Ma Station Service">
+    <span class="user-chip mono" onclick="signOut()">⎋ Déconnexion</span>
+  </div>
+  <div class="status-line"><span class="status-dot" id="bouStatusDot"></span><span id="bouStatusText">—</span></div>
+</header>
+
+<main>
+  <!-- ---------- OUVERTURE ---------- -->
+  <section class="view" id="view-bou-ouverture">
+    <div class="lead">
+      <div class="ic">🏪</div>
+      <h1>Ouverture de la boutique</h1>
+      <p>Renseignez le fonds de caisse de départ. Une seule fois, au début de la journée.</p>
+    </div>
+    <div class="panel">
+      <h2>Informations</h2>
+      <select class="note-input" id="bouInfoStation"></select>
+      <input class="note-input hidden" id="bouInfoStationNew" placeholder="Nom de la nouvelle station">
+      <input class="note-input" id="bouInfoHotesse" placeholder="Votre nom">
+    </div>
+    <div class="panel">
+      <h2>Fonds de caisse de départ</h2>
+      <input class="led-input" inputmode="decimal" id="bouFondsCaisse" placeholder="Montant (FCFA)">
+    </div>
+    <button class="save-btn" onclick="openBoutiqueShift()">✓ Enregistrer l'ouverture</button>
+    <div class="status-msg" id="bouOuvStatusMsg"></div>
+  </section>
+
+  <!-- ---------- JOURNÉE ---------- -->
+  <section class="view" id="view-bou-service">
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">🏪</div>
+      <h1>Boutique ouverte</h1>
+      <p>Enregistrez chaque opération au fur et à mesure.</p>
+    </div>
+    <div class="panel">
+      <h2>Nouvelle opération</h2>
+      <div class="optype-grid" id="bouOpGrid"></div>
+      <div id="bouOpFields"></div>
+      <input class="note-input" id="bouOpNote" placeholder="Note (facultatif)">
+      <button class="save-btn ghost" id="bouAddOpBtn" onclick="addBoutiqueOp()">+ Ajouter cette opération</button>
+      <button class="save-btn ghost hidden" id="bouCancelOpEditBtn" onclick="cancelEditBouOp()" style="color:var(--bad);border-color:rgba(229,72,77,.35)">✕ Annuler la modification</button>
+    </div>
+    <div class="panel">
+      <h2>Opérations du jour <span class="badge mono" id="bouOpCount"></span></h2>
+      <div id="bouOpList"></div>
+    </div>
+    <button class="save-btn" onclick="goToBoutiqueClosing()">🔒 Clôturer la boutique</button>
+  </section>
+
+  <!-- ---------- CLÔTURE ---------- -->
+  <section class="view" id="view-bou-cloture">
+    <div class="back-link" onclick="showBouStage('service')">← Retour</div>
+    <div class="lead">
+      <div class="ic">🧮</div>
+      <h1>Clôture de la caisse</h1>
+      <p>Comptez l'argent physiquement présent dans la caisse.</p>
+    </div>
+    <div class="panel">
+      <h2>Montant compté en caisse</h2>
+      <input class="led-input" inputmode="decimal" id="bouMontantCompte" placeholder="Montant (FCFA)">
+    </div>
+    <button class="save-btn" onclick="computeAndShowBoutiqueSituation()">Calculer la situation</button>
+  </section>
+
+  <!-- ---------- SITUATION ---------- -->
+  <section class="view" id="view-bou-situation">
+    <div class="panel" id="bouSituInfoBox"></div>
+    <div id="bouSituationBox"></div>
+    <div class="panel"><h2>Retraits</h2><div id="bouSumRetraits"></div></div>
+    <div class="panel"><h2>Dépôts</h2><div id="bouSumDepots"></div></div>
+    <div class="panel"><h2>Ventes produits</h2><div id="bouSumVentes"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="bouSumFinal"></div></div>
+    <div class="panel" id="bouSignaturePanel">
+      <h2>Signature</h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">En tapant votre nom, vous certifiez l'exactitude des informations ci-dessus.</p>
+      <input class="note-input" id="bouSignatureInput" placeholder="Tapez votre nom complet pour signer">
+      <div class="status-msg" id="bouSignatureMsg"></div>
+    </div>
+    <button class="save-btn" id="bouCloseShiftBtn" onclick="closeBoutiqueShift()">🔒 Clôturer (définitif)</button>
+    <button class="save-btn ghost" onclick="shareBoutiqueWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,.35)">📲 Partager via WhatsApp</button>
+    <button class="save-btn ghost" id="bouBackToOpBtn" onclick="backToOpFromBoutiqueSituation()">← Ajouter une opération oubliée</button>
+    <button class="save-btn ghost" id="bouBackToClotureBtn" onclick="showBouStage('cloture')">← Corriger le comptage</button>
+    <div class="status-msg" id="bouStatusMsg"></div>
+  </section>
+
+  <!-- ---------- CATALOGUE ---------- -->
+  <section class="view" id="view-bou-catalogue">
+    <div class="lead" style="padding:18px 16px;">
+      <div class="ic">📦</div>
+      <h1>Catalogue produits</h1>
+      <p>Ajoutez, modifiez ou supprimez les produits vendus en boutique.</p>
+    </div>
+    <div class="panel">
+      <h2>Nouveau produit</h2>
+      <input class="note-input" id="bouProdName" placeholder="Nom du produit (ex: Eau minérale 50cl)">
+      <input class="led-input" style="margin-bottom:10px" id="bouProdPrice" inputmode="decimal" placeholder="Prix unitaire (FCFA)">
+      <button class="save-btn ghost" id="bouAddProdBtn" onclick="addBoutiqueProduct()">+ Ajouter au catalogue</button>
+      <button class="save-btn ghost hidden" id="bouCancelProdEditBtn" onclick="cancelEditBoutiqueProduct()" style="color:var(--bad);border-color:rgba(229,72,77,.35)">✕ Annuler la modification</button>
+    </div>
+    <div class="panel">
+      <h2>Produits enregistrés <span class="badge mono" id="bouProdCount"></span></h2>
+      <div id="bouProdList"></div>
+    </div>
+  </section>
+
+  <!-- ---------- HISTORIQUE ---------- -->
+  <section class="view" id="view-bou-historique">
+    <div class="month-recap">
+      <h2 id="bouMonthTitle">Récapitulatif du mois</h2>
+      <div id="bouMonthRecap"></div>
+    </div>
+    <div class="panel">
+      <h2>Journées archivées</h2>
+      <div id="bouHistList"></div>
+    </div>
+  </section>
+
+  <!-- ---------- DÉTAIL ARCHIVÉ ---------- -->
+  <section class="view" id="view-bou-detail">
+    <div class="back-link" onclick="showBouStage('historique')">← Retour à l'historique</div>
+    <div class="panel" id="bouDetailInfoBox"></div>
+    <div id="bouDetailBox"></div>
+    <div class="panel"><h2>Retraits</h2><div id="bouDetailRetraits"></div></div>
+    <div class="panel"><h2>Dépôts</h2><div id="bouDetailDepots"></div></div>
+    <div class="panel"><h2>Ventes produits</h2><div id="bouDetailVentes"></div></div>
+    <div class="panel"><h2>Récapitulatif</h2><div id="bouDetailFinal"></div></div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button class="tab active" data-bou-tab="service" onclick="switchBouTab('service')"><span class="ic">🏪</span>Journée</button>
+  <button class="tab" data-bou-tab="catalogue" onclick="switchBouTab('catalogue')"><span class="ic">📦</span>Catalogue</button>
+  <button class="tab" data-bou-tab="historique" onclick="switchBouTab('historique')"><span class="ic">📅</span>Historique</button>
+</nav>
+
+                                            </div><script>
+// ============================================================
+// CONFIGURATION SUPABASE
+// ============================================================
+const SUPABASE_URL = "https://golrvqweqcudptwdzufk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_tmdtvlF6Mcd5vPQWiJeMdQ_eeee0-J1";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
+let authMode = 'signin';
+
+function toggleAuthMode(){
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  document.getElementById('nameField').classList.toggle('hidden', authMode === 'signin');
+  document.getElementById('authWelcomeTitle').innerHTML = authMode === 'signin' ? 'Bienvenue <span class="wave">👋</span>' : 'Créez votre compte <span class="wave">🚀</span>';
+  document.getElementById('authSub').textContent = authMode === 'signin' ? 'Connectez-vous pour accéder à votre service' : 'Créez votre compte pompiste';
+  document.getElementById('authSubmitBtn').textContent = authMode === 'signin' ? 'Se connecter' : 'Créer mon compte';
+  document.getElementById('authSwitchText').textContent = authMode === 'signin' ? 'Pas encore de compte ?' : 'Déjà un compte ?';
+  document.getElementById('authSwitchLink').textContent = authMode === 'signin' ? 'Créer un compte' : 'Se connecter';
+  document.getElementById('authError').classList.add('hidden');
+}
+async function handleAuthSubmit(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errBox = document.getElementById('authError');
+  errBox.classList.add('hidden');
+  if(!email || !password){ showAuthError('Entrez votre email et votre mot de passe.'); return; }
+  try{
+    if(authMode === 'signup'){
+      const full_name = document.getElementById('authName').value.trim();
+      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name } } });
+      if(error) throw error;
+      if(data.user && !data.session){ showAuthError("Compte créé ! Vérifiez votre email pour confirmer, puis connectez-vous."); return; }
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if(error) throw error;
+    }
+  }catch(e){ showAuthError(translateAuthError(e.message)); }
+}
+function showAuthError(msg){ const b=document.getElementById('authError'); b.textContent=msg; b.classList.remove('hidden'); }
+function translateAuthError(msg){
+  if(msg.includes('Invalid login credentials')) return 'Email ou mot de passe incorrect.';
+  if(msg.includes('already registered')) return 'Cet email a déjà un compte — connectez-vous plutôt.';
+  if(msg.includes('Password should be')) return 'Le mot de passe doit faire au moins 6 caractères.';
+  return msg;
+}
+async function signOut(){ await sb.auth.signOut(); }
+sb.auth.onAuthStateChange((event, session) => {
+  if(session && session.user){
+    currentUser = session.user;
+    document.getElementById('authScreen').classList.add('hidden');
+    initApp();
+  } else {
+    currentUser = null;
+    document.getElementById('appRoot').classList.add('hidden');
+    document.getElementById('supervisorRoot').classList.add('hidden');
+    document.getElementById('boutiqueRoot').classList.add('hidden');
+    document.getElementById('authScreen').classList.remove('hidden');
+  }
+});
+
+// ============================================================
+// DONNÉES DE RÉFÉRENCE
+// ============================================================
+const FUEL_TYPES = [
+  { key:'super',   label:'Super',   color:'var(--super)',   defPrice:856 },
+  { key:'gazole',  label:'Gazole',  color:'var(--gazole)',  defPrice:844 },
+  { key:'petrole', label:'Pétrole', color:'var(--petrole)', defPrice:366 },
+];
+const BOTTLES = [
+  { key:'b6',  label:'6 kg',  defRecharge:3205,  defConsigne:13605 },
+  { key:'b12', label:'12 kg', defRecharge:6680,  defConsigne:24340 },
+  { key:'b35', label:'35 kg', defRecharge:18000, defConsigne:45000 },
+];
+const VTYPES = [
+  { key:'especes', label:'Espèces', ic:'💶' },
+  { key:'orange',  label:'Orange',  ic:'🟠' },
+  { key:'tomcard', label:'Tom Card',ic:'💳' },
+  { key:'bons',    label:'Bons',    ic:'🧾' },
+  { key:'credit',  label:'Crédit',  ic:'📒' },
+];
+const BON_DENOMS = [5000, 10000, 15000];
+function fuelMeta(key){ return FUEL_TYPES.find(f => f.key === key); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const fmt = n => Math.round(n).toLocaleString('fr-FR');
+const todayDate = () => new Date().toISOString().slice(0,10);
+
+function defaultState(){
+  const gaz = {};
+  BOTTLES.forEach(b => gaz[b.key] = { ouvPleines:'', ouvVides:'', fermPleines:'', fermVides:'', prixRecharge:b.defRecharge, prixConsigne:b.defConsigne });
+  const fuelPrices = {};
+  FUEL_TYPES.forEach(f => fuelPrices[f.key] = f.defPrice);
+  return {
+    status: 'none', // 'none' | 'open' | 'closed'
+    openedAt: null, closedAt: null,
+    stationName: '', pompisteName: '', posteNumber: '', ilotNumber: '',
+    pumps: [
+      { id: uid(), fuel:'super',   label:'Super 1',   ouv:'', ferm:'' },
+      { id: uid(), fuel:'gazole',  label:'Gazole 1',  ouv:'', ferm:'' },
+      { id: uid(), fuel:'petrole', label:'Pétrole 1', ouv:'', ferm:'' },
+    ],
+    fuelPrices, gaz, versements: [], depenses: [], signature: '',
+  };
+}
+
+let state = defaultState();
+let currentVType = 'especes';
+let currentStage = 'ouverture'; // ouverture | service | cloture | situation | historique | detail
+let historyCache = [];
+let reviewMode = false;
+let profileInfo = { full_name: '', station_name: '', role: 'pompiste' };
+
+async function initApp(){
+  await loadProfile();
+  if(profileInfo.role === 'superviseur'){
+    initSupervisor();
+  } else if(profileInfo.role === 'boutique'){
+    initBoutique();
+  } else {
+    document.getElementById('appRoot').classList.remove('hidden');
+    document.getElementById('userChip').textContent = '⎋ ' + (currentUser.email || 'Déconnexion');
+    await loadStationOptions();
+    await loadTodayShift();
+  }
+}
+let stationOptions = [];
+async function loadStationOptions(){
+  try{
+    const { data, error } = await sb.from('profiles').select('station_name').not('station_name', 'is', null).neq('station_name', '');
+    if(!error && data){
+      stationOptions = [...new Set(data.map(r => r.station_name).filter(Boolean))].sort();
+    }
+  }catch(e){ console.warn('Liste des stations indisponible :', e.message); }
+}
+async function loadProfile(){
+  try{
+    const { data, error } = await sb.from('profiles').select('full_name,station_name,role,poste_number,ilot_number').eq('id', currentUser.id).maybeSingle();
+    if(!error && data){ profileInfo = { full_name: data.full_name || '', station_name: data.station_name || '', role: data.role || 'pompiste', poste_number: data.poste_number || '', ilot_number: data.ilot_number || '' }; }
+  }catch(e){ console.warn('Profil indisponible :', e.message); }
+}
+
+// ============================================================
+// PERSISTENCE
+// ============================================================
+async function loadTodayShift(){
+  try{
+    const { data, error } = await sb.from('shifts').select('data').eq('user_id', currentUser.id).eq('shift_date', todayDate()).maybeSingle();
+    if(error) throw error;
+    if(data && data.data && data.data.status && data.data.status !== 'none'){
+      const saved = data.data;
+      const def = defaultState();
+      state = Object.assign(def, saved);
+      state.pumps = Array.isArray(saved.pumps) && saved.pumps.length ? saved.pumps : def.pumps;
+      state.versements = Array.isArray(saved.versements) ? saved.versements : [];
+      state.depenses = Array.isArray(saved.depenses) ? saved.depenses : [];
+      state.stationName = saved.stationName || '';
+      state.pompisteName = saved.pompisteName || '';
+      state.posteNumber = saved.posteNumber || '';
+      state.ilotNumber = saved.ilotNumber || '';
+      state.signature = saved.signature || '';
+      state.fuelPrices = Object.assign(def.fuelPrices, saved.fuelPrices || {});
+      BOTTLES.forEach(b => state.gaz[b.key] = Object.assign(def.gaz[b.key], saved.gaz?.[b.key] || {}));
+    } else {
+      state = defaultState();
+    }
+  }catch(e){
+    console.warn('Chargement impossible :', e.message);
+    state = defaultState();
+  }
+  routeToStage();
+}
+async function persist(){
+  try{
+    const { error } = await sb.from('shifts').upsert({
+      user_id: currentUser.id, shift_date: todayDate(), data: state, updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,shift_date' });
+    if(error) throw error;
+    return true;
+  }catch(e){ console.warn('Sauvegarde impossible :', e.message); return false; }
+}
+
+// ============================================================
+// NAVIGATION / ÉTAT DU POSTE
+// ============================================================
+function routeToStage(){
+  updateStatusHeader();
+  if(state.status === 'none'){
+    renderOuverture();
+    showStage('ouverture');
+  } else if(state.status === 'open'){
+    renderService();
+    showStage('service');
+  } else {
+    computeAndShowSituation(true);
+  }
+  document.querySelector('.tab[data-tab="service"]').classList.add('active');
+  document.querySelector('.tab[data-tab="historique"]').classList.remove('active');
+}
+function updateStatusHeader(){
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot ' + (state.status === 'open' ? 'open' : state.status === 'closed' ? 'closed' : 'none');
+  if(state.status === 'open') txt.textContent = 'Poste ouvert depuis ' + (state.openedAt ? new Date(state.openedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '');
+  else if(state.status === 'closed') txt.textContent = 'Poste clôturé — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+  else txt.textContent = 'Poste non ouvert — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+  const info = document.getElementById('postInfoLine');
+  const bits = [state.stationName, state.posteNumber ? 'Poste ' + state.posteNumber : null, state.ilotNumber ? 'Îlot ' + state.ilotNumber : null].filter(Boolean);
+  if(bits.length){ info.textContent = bits.join(' · '); info.classList.remove('hidden'); }
+  else { info.classList.add('hidden'); }
+}
+function showStage(stage){
+  currentStage = stage;
+  document.querySelectorAll('#appRoot .view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + stage).classList.add('active');
+}
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  if(tab === 'historique'){ loadHistory(); showStage('historique'); }
+  else { routeToStage(); }
+}
+
+// ============================================================
+// OUVERTURE DU POSTE
+// ============================================================
+function renderOuverture(){
+  const currentStation = state.stationName || profileInfo.station_name || '';
+  const stationSelect = document.getElementById('infoStation');
+  const stationNewInput = document.getElementById('infoStationNew');
+  stationSelect.innerHTML = '<option value="">— Choisir une station —</option>'
+    + stationOptions.map(s => `<option value="${s}">${s}</option>`).join('')
+    + '<option value="__new__">➕ Nouvelle station...</option>';
+  if(currentStation && stationOptions.includes(currentStation)){
+    stationSelect.value = currentStation;
+    stationNewInput.classList.add('hidden');
+  } else if(currentStation){
+    stationSelect.value = '__new__';
+    stationNewInput.value = currentStation;
+    stationNewInput.classList.remove('hidden');
+  } else {
+    stationNewInput.classList.add('hidden');
+  }
+  stationSelect.onchange = e => {
+    if(e.target.value === '__new__'){
+      stationNewInput.classList.remove('hidden');
+      stationNewInput.value = '';
+      stationNewInput.focus();
+      state.stationName = '';
+    } else {
+      stationNewInput.classList.add('hidden');
+      state.stationName = e.target.value;
+    }
+  };
+  stationNewInput.oninput = e => state.stationName = e.target.value;
+
+  document.getElementById('infoPompiste').value = state.pompisteName || profileInfo.full_name || '';
+  document.getElementById('infoPompiste').oninput = e => state.pompisteName = e.target.value;
+  document.getElementById('infoPoste').value = state.posteNumber || profileInfo.poste_number || '';
+  document.getElementById('infoPoste').oninput = e => state.posteNumber = e.target.value;
+  document.getElementById('infoIlot').value = state.ilotNumber || profileInfo.ilot_number || '';
+  document.getElementById('infoIlot').oninput = e => state.ilotNumber = e.target.value;
+
+  document.getElementById('ouvPumpCards').innerHTML = FUEL_TYPES.map(f => {
+    const pumpsForFuel = state.pumps.filter(p => p.fuel === f.key);
+    return `
+    <div class="fuel-group">
+      <div class="fuel-group-head">
+        <span class="fdot" style="background:${f.color}"></span>
+        <span class="fname">${f.label}</span>
+        <button class="addbtn" onclick="addPump('${f.key}')">+ Ajouter un pistolet</button>
+      </div>
+      ${pumpsForFuel.map(p => `
+        <div class="pump-card">
+          <div class="plabel-row" style="display:flex;align-items:center;gap:8px">
+            <span style="flex:1">${p.label}</span>
+            <button class="del" onclick="removePump('${p.id}')">✕</button>
+          </div>
+          <span class="field-label">Index ouverture (L)</span>
+          <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ouv}" oninput="updatePump('${p.id}','ouv',this.value)">
+        </div>`).join('') || '<div class="empty" style="padding:10px 0">Aucun pistolet — ajoutez-en un</div>'}
+    </div>`;
+  }).join('');
+
+  document.getElementById('ouvGazCards').innerHTML = BOTTLES.map(b => {
+    const g = state.gaz[b.key];
+    return `
+    <div class="gaz-card">
+      <div class="gtitle">Bouteille ${b.label}</div>
+      <div class="stock-row">
+        <div class="field"><span class="field-label">Stock pleines</span><input class="led-input" style="font-size:15px" inputmode="numeric" value="${g.ouvPleines}" oninput="state.gaz['${b.key}'].ouvPleines=this.value"></div>
+        <div class="field"><span class="field-label">Stock vides</span><input class="led-input" style="font-size:15px" inputmode="numeric" value="${g.ouvVides}" oninput="state.gaz['${b.key}'].ouvVides=this.value"></div>
+      </div>
+      <div class="stock-row" style="margin-top:8px">
+        <div class="field"><span class="field-label">Prix recharge</span><input class="price-input" style="width:100%" inputmode="decimal" value="${g.prixRecharge}" oninput="state.gaz['${b.key}'].prixRecharge=this.value"></div>
+        <div class="field"><span class="field-label">Prix consigne</span><input class="price-input" style="width:100%" inputmode="decimal" value="${g.prixConsigne}" oninput="state.gaz['${b.key}'].prixConsigne=this.value"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('priceFuels').innerHTML = FUEL_TYPES.map(f => `
+    <div class="price-row">
+      <span class="dot" style="background:${f.color}"></span>
+      <span class="lbl">${f.label}<span style="color:var(--muted);font-weight:400"> FCFA/L</span></span>
+      <input class="price-input" inputmode="decimal" value="${state.fuelPrices[f.key]}" oninput="state.fuelPrices['${f.key}']=this.value">
+    </div>`).join('');
+}
+function updatePump(id, field, value){ const p = state.pumps.find(p => p.id === id); if(p) p[field] = value; }
+function addPump(fuelKey){
+  const meta = fuelMeta(fuelKey);
+  const count = state.pumps.filter(p => p.fuel === fuelKey).length + 1;
+  state.pumps.push({ id: uid(), fuel: fuelKey, label: meta.label + ' ' + count, ouv:'', ferm:'' });
+  renderOuverture();
+}
+function removePump(id){ state.pumps = state.pumps.filter(p => p.id !== id); renderOuverture(); }
+
+async function openShift(){
+  if(!state.stationName || !state.stationName.trim()){
+    document.getElementById('ouvStatusMsg').textContent = 'Veuillez choisir ou saisir le nom de la station.';
+    document.getElementById('ouvStatusMsg').style.color = 'var(--bad)';
+    return;
+  }
+  state.status = 'open';
+  state.openedAt = new Date().toISOString();
+  try{
+    await sb.from('profiles').upsert({
+      id: currentUser.id,
+      full_name: state.pompisteName || profileInfo.full_name,
+      station_name: state.stationName || profileInfo.station_name,
+      poste_number: state.posteNumber || profileInfo.poste_number,
+      ilot_number: state.ilotNumber || profileInfo.ilot_number
+    });
+  }catch(e){ console.warn('Synchronisation du profil impossible :', e.message); }
+  const ok = await persist();
+  const msg = document.getElementById('ouvStatusMsg');
+  if(ok){ routeToStage(); }
+  else { msg.textContent = "Échec de l'enregistrement — vérifiez votre connexion."; }
+}
+
+// ============================================================
+// SERVICE EN COURS — VERSEMENTS
+// ============================================================
+function renderService(){
+  renderVTypeGrid(); renderExtraFields(); renderVList(); renderDepenses();
+  document.getElementById('closeServiceBtn').classList.toggle('hidden', reviewMode);
+  document.getElementById('recalcSituationBtn').classList.toggle('hidden', !reviewMode);
+  document.getElementById('editClosingBtn').classList.toggle('hidden', !reviewMode);
+}
+function backToVersementFromSituation(){
+  reviewMode = true;
+  renderService();
+  showStage('service');
+}
+function renderVTypeGrid(){
+  document.getElementById('vtypeGrid').innerHTML = VTYPES.map(t => `
+    <div class="vtype-btn ${t.key===currentVType?'active':''}" onclick="selectVType('${t.key}')">
+      <span class="ic">${t.ic}</span><span class="lb">${t.label}</span>
+    </div>`).join('');
+}
+function selectVType(key){ currentVType = key; renderVTypeGrid(); renderExtraFields(); }
+function renderExtraFields(){
+  const box = document.getElementById('vExtraFields');
+  if(currentVType === 'bons'){
+    box.innerHTML = `
+      <div class="bons-grid">
+        ${BON_DENOMS.map(d => `<div class="bons-field"><label>Bons ${d/1000}k</label><input id="bon-${d}" inputmode="numeric" placeholder="0" oninput="recalcBons()"></div>`).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--muted);background:var(--surface-2);border-radius:8px;padding:8px 10px;margin-top:8px;">Montant total : <strong class="mono" id="bonsTotal">0</strong> FCFA</div>`;
+  } else {
+    box.innerHTML = `<input class="led-input" style="margin-bottom:10px" id="vMontant" inputmode="decimal" placeholder="Montant (FCFA)">`;
+  }
+}
+function recalcBons(){ let t=0; BON_DENOMS.forEach(d => t += num(document.getElementById('bon-'+d).value) * d); document.getElementById('bonsTotal').textContent = fmt(t); }
+async function addVersement(){
+  let montant = 0, detail = null;
+  if(currentVType === 'bons'){
+    detail = {};
+    BON_DENOMS.forEach(d => { const c = num(document.getElementById('bon-'+d).value); if(c > 0) detail[d] = c; montant += c * d; });
+    if(montant <= 0){ alert('Indiquez au moins un bon.'); return; }
+  } else {
+    montant = num(document.getElementById('vMontant').value);
+    if(montant <= 0){ alert('Indiquez un montant.'); return; }
+  }
+  const note = document.getElementById('vNote').value.trim();
+  if(currentEditId){
+    const v = state.versements.find(v => v.id === currentEditId);
+    if(v){ v.type = currentVType; v.montant = montant; v.detail = detail; v.note = note; }
+    cancelEditVersement();
+  } else {
+    state.versements.push({ id: uid(), type: currentVType, montant, detail, note, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
+    document.getElementById('vNote').value = '';
+    renderExtraFields();
+  }
+  renderVList();
+  await persist();
+}
+async function removeVersement(id){ state.versements = state.versements.filter(v => v.id !== id); renderVList(); await persist(); }
+let currentEditId = null;
+function editVersement(id){
+  const v = state.versements.find(v => v.id === id);
+  if(!v) return;
+  currentEditId = id;
+  currentVType = v.type;
+  renderVTypeGrid();
+  renderExtraFields();
+  if(v.type === 'bons' && v.detail){
+    Object.entries(v.detail).forEach(([d,c]) => { const el = document.getElementById('bon-'+d); if(el) el.value = c; });
+    recalcBons();
+  } else {
+    const el = document.getElementById('vMontant'); if(el) el.value = v.montant;
+  }
+  document.getElementById('vNote').value = v.note || '';
+  document.getElementById('addVersementBtn').textContent = '✓ Enregistrer la modification';
+  document.getElementById('cancelEditBtn').classList.remove('hidden');
+}
+function cancelEditVersement(){
+  currentEditId = null;
+  document.getElementById('addVersementBtn').textContent = '+ Ajouter ce versement';
+  document.getElementById('cancelEditBtn').classList.add('hidden');
+  document.getElementById('vNote').value = '';
+  renderExtraFields();
+}
+function renderVList(){
+  const list = state.versements.slice().reverse();
+  document.getElementById('vCount').textContent = state.versements.length ? `(${state.versements.length})` : '';
+  document.getElementById('vList').innerHTML = list.map(v => {
+    const meta = VTYPES.find(t => t.key === v.type);
+    let sub = v.time;
+    if(v.detail) sub += ' · ' + Object.entries(v.detail).map(([d,c]) => `${c}×${d/1000}k`).join(', ');
+    if(v.note) sub += ' · ' + v.note;
+    return `
+    <div class="list-item ${v.type==='credit'?'credit':''}">
+      <span class="ic">${meta.ic}</span>
+      <div class="info"><div class="t">${meta.label}</div><div class="s">${sub}</div></div>
+      <span class="amt">${fmt(v.montant)}</span>
+      <button class="del" onclick="editVersement('${v.id}')" style="color:var(--amber)">✎</button>
+      <button class="del" onclick="removeVersement('${v.id}')">✕</button>
+    </div>`;
+  }).join('') || '<div class="empty">Aucun versement enregistré</div>';
+}
+
+async function addDepense(){
+  const motif = document.getElementById('depMotif').value.trim();
+  const montant = num(document.getElementById('depMontant').value);
+  if(!motif){ alert('Indiquez le motif de la dépense.'); return; }
+  if(montant <= 0){ alert('Indiquez un montant.'); return; }
+  state.depenses.push({ id: uid(), motif, montant, time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) });
+  document.getElementById('depMotif').value = '';
+  document.getElementById('depMontant').value = '';
+  renderDepenses();
+  await persist();
+}
+async function removeDepense(id){ state.depenses = state.depenses.filter(d => d.id !== id); renderDepenses(); await persist(); }
+function renderDepenses(){
+  const list = state.depenses.slice().reverse();
+  document.getElementById('depCount').textContent = state.depenses.length ? `(${state.depenses.length})` : '';
+  document.getElementById('depList').innerHTML = list.map(d => `
+    <div class="list-item">
+      <span class="ic">🧺</span>
+      <div class="info"><div class="t">${d.motif}</div><div class="s">${d.time}</div></div>
+      <span class="amt" style="color:var(--bad)">-${fmt(d.montant)}</span>
+      <button class="del" onclick="removeDepense('${d.id}')">✕</button>
+    </div>`).join('') || '<div class="empty">Aucune dépense enregistrée</div>';
+}
+
+// ============================================================
+// CLÔTURE — SAISIE DES INDEX DE FIN
+// ============================================================
+function goToClosing(){
+  document.getElementById('fermPumpCards').innerHTML = FUEL_TYPES.map(f => {
+    const pumpsForFuel = state.pumps.filter(p => p.fuel === f.key);
+    return `
+    <div class="fuel-group">
+      <div class="fuel-group-head"><span class="fdot" style="background:${f.color}"></span><span class="fname">${f.label}</span></div>
+      ${pumpsForFuel.map(p => `
+        <div class="pump-card">
+          <div class="plabel-row">${p.label} <span style="color:var(--muted);font-weight:500">— ouv. ${p.ouv || 0} L</span></div>
+          <span class="field-label">Index clôture (L)</span>
+          <input class="led-input" inputmode="decimal" placeholder="0000.0" value="${p.ferm}" oninput="updatePump('${p.id}','ferm',this.value)">
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  document.getElementById('fermGazCards').innerHTML = BOTTLES.map(b => {
+    const g = state.gaz[b.key];
+    return `
+    <div class="gaz-card">
+      <div class="gtitle">Bouteille ${b.label} <span style="color:var(--muted);font-weight:500;font-size:11px">— ouv. ${g.ouvPleines||0} pleines / ${g.ouvVides||0} vides</span></div>
+      <div class="stock-row">
+        <div class="field"><span class="field-label">Stock pleines</span><input class="led-input" style="font-size:15px" inputmode="numeric" value="${g.fermPleines}" oninput="state.gaz['${b.key}'].fermPleines=this.value"></div>
+        <div class="field"><span class="field-label">Stock vides</span><input class="led-input" style="font-size:15px" inputmode="numeric" value="${g.fermVides}" oninput="state.gaz['${b.key}'].fermVides=this.value"></div>
+      </div>
+    </div>`;
+  }).join('');
+  showStage('cloture');
+}
+
+// ============================================================
+// CALCULS
+// ============================================================
+function renderVersementsReadOnly(versements){
+  return (versements || []).slice().reverse().map(v => {
+    const meta = VTYPES.find(t => t.key === v.type) || { ic:'💳', label: v.type };
+    let sub = v.time || '';
+    if(v.detail) sub += ' · ' + Object.entries(v.detail).map(([d,c]) => `${c}×${d/1000}k`).join(', ');
+    if(v.note) sub += ' · ' + v.note;
+    return `
+    <div class="list-item ${v.type==='credit'?'credit':''}">
+      <span class="ic">${meta.ic}</span>
+      <div class="info"><div class="t">${meta.label}</div><div class="s">${sub}</div></div>
+      <span class="amt">${fmt(v.montant)}</span>
+    </div>`;
+  }).join('') || '<div class="empty">Aucun versement enregistré</div>';
+}
+
+function computeFuelSales(){
+  const byFuel = {};
+  FUEL_TYPES.forEach(f => byFuel[f.key] = { ...f, qty:0, montant:0 });
+  state.pumps.forEach(p => {
+    const qty = Math.max(0, num(p.ferm) - num(p.ouv));
+    byFuel[p.fuel].qty += qty;
+    byFuel[p.fuel].montant += qty * num(state.fuelPrices[p.fuel]);
+  });
+  return Object.values(byFuel);
+}
+function computeGazSales(){
+  return BOTTLES.map(b => {
+    const g = state.gaz[b.key];
+    const pleinesVendues = Math.max(0, num(g.ouvPleines) - num(g.fermPleines));
+    const videsRecues = Math.max(0, num(g.fermVides) - num(g.ouvVides));
+    const recharges = Math.min(videsRecues, pleinesVendues);
+    const consignes = Math.max(0, pleinesVendues - recharges);
+    const montant = recharges * num(g.prixRecharge) + consignes * num(g.prixConsigne);
+    return { ...b, recharges, consignes, montant };
+  });
+}
+function computePayTotals(versements){
+  const totals = {}; VTYPES.forEach(t => totals[t.key] = 0);
+  versements.forEach(v => totals[v.type] += v.montant);
+  return totals;
+}
+
+function computeAndShowSituation(readOnly){
+  document.getElementById('situInfoBox').innerHTML = `
+    <div class="summary-line"><span>Station</span><span class="v">${state.stationName || '—'}</span></div>
+    <div class="summary-line"><span>Pompiste</span><span class="v">${state.pompisteName || '—'}</span></div>
+    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${state.posteNumber || '—'} / ${state.ilotNumber || '—'}</span></div>
+    <div class="summary-line"><span>Date</span><span class="v">${new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span></div>`;
+  const fuelSales = computeFuelSales();
+  const gazSales = computeGazSales();
+  const totalFuel = fuelSales.reduce((s,f)=>s+f.montant,0);
+  const totalGaz = gazSales.reduce((s,g)=>s+g.montant,0);
+  const totalCA = totalFuel + totalGaz;
+  const pay = computePayTotals(state.versements);
+  const totalEncaisse = pay.especes + pay.orange + pay.tomcard + pay.bons;
+  const totalCredit = pay.credit;
+  const totalDepenses = state.depenses.reduce((s,d)=>s+d.montant,0);
+  const totalRecu = totalEncaisse + totalCredit + totalDepenses;
+  const ecart = totalRecu - totalCA;
+
+  document.getElementById('sumFuels').innerHTML = fuelSales.map(f => `
+    <div class="summary-line"><span>${f.label} <span style="color:var(--muted)">— ${f.qty.toFixed(1)} L</span></span><span class="v">${fmt(f.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('sumGaz').innerHTML = gazSales.map(g => `
+    <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('sumPay').innerHTML = VTYPES.map(t => `
+    <div class="summary-line"><span>${t.ic} ${t.label}</span><span class="v">${fmt(pay[t.key])}</span></div>`).join('');
+  document.getElementById('sumDepenses').innerHTML = state.depenses.map(d => `
+    <div class="summary-line"><span>${d.motif}</span><span class="v">-${fmt(d.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
+  document.getElementById('sumFinal').innerHTML = `
+    <div class="summary-line"><span>Total versé (espèces + mobile + bons)</span><span class="v">${fmt(totalEncaisse)}</span></div>
+    <div class="summary-line"><span>Total à crédit</span><span class="v">${fmt(totalCredit)}</span></div>
+    <div class="summary-line"><span>Total dépenses (justifiées)</span><span class="v">-${fmt(totalDepenses)}</span></div>
+    <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(totalCA)} F</span></div>
+    <div class="summary-line total"><span>Reçu (versé + crédit + dépenses)</span><span class="v">${fmt(totalRecu)} F</span></div>`;
+  const ok = ecart >= 0;
+  document.getElementById('situationBox').innerHTML = `
+    <div class="situation-box ${ok ? 'ok' : 'bad'}">
+      <div class="tag">${ecart === 0 ? 'Caisse juste' : (ecart < 0 ? 'Manquant' : 'Excédent')}</div>
+      <div class="amount">${ecart > 0 ? '+' : ''}${fmt(ecart)} F</div>
+      <div class="hint">Reçu (${fmt(totalRecu)}) − Vendu (${fmt(totalCA)})</div>
+    </div>`;
+
+  document.getElementById('closeShiftBtn').classList.toggle('hidden', !!readOnly);
+  document.getElementById('backToVersementBtn').classList.toggle('hidden', !!readOnly);
+  document.getElementById('backToClotureBtn').classList.toggle('hidden', !!readOnly);
+  if(readOnly){
+    document.getElementById('signaturePanel').classList.remove('hidden');
+    document.getElementById('signatureInput').style.display = 'none';
+    document.querySelector('#signaturePanel p').classList.add('hidden');
+    let confirmEl = document.getElementById('signatureConfirmed');
+    if(!confirmEl){
+      confirmEl = document.createElement('div');
+      confirmEl.id = 'signatureConfirmed';
+      confirmEl.style.cssText = 'font-size:14px;font-weight:700;color:var(--good);';
+      document.getElementById('signaturePanel').appendChild(confirmEl);
+    }
+    confirmEl.textContent = '✓ Signé par ' + (state.signature || '—');
+  } else {
+    document.getElementById('signaturePanel').classList.remove('hidden');
+    document.getElementById('signatureInput').style.display = '';
+    document.querySelector('#signaturePanel p').classList.remove('hidden');
+    const confirmEl = document.getElementById('signatureConfirmed');
+    if(confirmEl) confirmEl.remove();
+    document.getElementById('signatureInput').value = state.signature || state.pompisteName || '';
+  }
+  showStage('situation');
+
+  window._lastSituation = { fuelSales, gazSales, totalFuel, totalGaz, totalCA, pay, totalEncaisse, totalCredit, totalDepenses, totalRecu, ecart };
+}
+
+function shareWhatsApp(){
+  const s = window._lastSituation;
+  if(!s) return;
+  const dateStr = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  let msg = `*Situation du ${dateStr}*\n`;
+  if(state.stationName) msg += `Station : ${state.stationName}\n`;
+  if(state.pompisteName) msg += `Pompiste : ${state.pompisteName}\n`;
+  if(state.posteNumber || state.ilotNumber) msg += `Poste ${state.posteNumber || '—'} / Îlot ${state.ilotNumber || '—'}\n`;
+  msg += `\n*Carburants*\n`;
+  s.fuelSales.forEach(f => { if(f.qty > 0) msg += `${f.label}: ${f.qty.toFixed(1)} L — ${fmt(f.montant)} F\n`; });
+  msg += `\n*Gaz*\n`;
+  s.gazSales.forEach(g => { if(g.recharges > 0 || g.consignes > 0) msg += `${g.label}: ${g.recharges} rech. / ${g.consignes} cons. — ${fmt(g.montant)} F\n`; });
+  msg += `\n*Versements*\n`;
+  VTYPES.forEach(t => { if(s.pay[t.key] > 0) msg += `${t.label}: ${fmt(s.pay[t.key])} F\n`; });
+  if(s.totalDepenses > 0) msg += `\n*Dépenses:* -${fmt(s.totalDepenses)} F\n`;
+  msg += `\n*Vendu théorique:* ${fmt(s.totalCA)} F\n`;
+  msg += `*Reçu total:* ${fmt(s.totalRecu)} F\n`;
+  msg += `*Écart:* ${s.ecart > 0 ? '+' : ''}${fmt(s.ecart)} F ${s.ecart < 0 ? '(manquant)' : (s.ecart > 0 ? '(excédent)' : '(caisse juste)')}\n`;
+  msg += `\n_Signé par ${state.signature || state.pompisteName || '—'}_`;
+  const url = 'https://wa.me/?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+}
+
+async function closeShift(){
+  const sig = document.getElementById('signatureInput').value.trim();
+  if(!sig){
+    document.getElementById('signatureMsg').textContent = 'Veuillez taper votre nom pour signer avant de clôturer.';
+    document.getElementById('signatureMsg').style.color = 'var(--bad)';
+    document.getElementById('signatureInput').focus();
+    return;
+  }
+  state.signature = sig;
+  state.status = 'closed';
+  state.closedAt = new Date().toISOString();
+  reviewMode = false;
+  const ok = await persist();
+  const msg = document.getElementById('statusMsg');
+  if(ok){
+    msg.textContent = '✓ Poste clôturé et archivé';
+    updateStatusHeader();
+    document.getElementById('closeShiftBtn').classList.add('hidden');
+    document.getElementById('backToVersementBtn').classList.add('hidden');
+    document.getElementById('backToClotureBtn').classList.add('hidden');
+  } else {
+    msg.textContent = "Échec de l'enregistrement — réessayez.";
+  }
+}
+
+// ============================================================
+// HISTORIQUE + RÉCAP MENSUEL
+// ============================================================
+async function loadHistory(){
+  try{
+    const { data, error } = await sb.from('shifts')
+      .select('shift_date,data')
+      .eq('user_id', currentUser.id)
+      .order('shift_date', { ascending:false })
+      .limit(90);
+    if(error) throw error;
+    historyCache = (data || []).filter(r => r.data && r.data.status === 'closed');
+  }catch(e){ console.warn('Historique indisponible :', e.message); historyCache = []; }
+  renderHistory();
+}
+function shiftTotals(dayState){
+  const fuelSales = computeFuelSalesFor(dayState);
+  const gazSales = computeGazSalesFor(dayState);
+  const totalCA = fuelSales.reduce((s,f)=>s+f.montant,0) + gazSales.reduce((s,g)=>s+g.montant,0);
+  const pay = computePayTotals(dayState.versements || []);
+  const totalDepenses = (dayState.depenses || []).reduce((s,d)=>s+d.montant,0);
+  const totalRecu = pay.especes + pay.orange + pay.tomcard + pay.bons + pay.credit + totalDepenses;
+  return { fuelSales, gazSales, pay, totalDepenses, totalCA, totalRecu, ecart: totalRecu - totalCA };
+}
+function computeFuelSalesFor(dayState){
+  const byFuel = {}; FUEL_TYPES.forEach(f => byFuel[f.key] = { ...f, qty:0, montant:0 });
+  (dayState.pumps||[]).forEach(p => {
+    const qty = Math.max(0, num(p.ferm) - num(p.ouv));
+    byFuel[p.fuel].qty += qty;
+    byFuel[p.fuel].montant += qty * num((dayState.fuelPrices||{})[p.fuel]);
+  });
+  return Object.values(byFuel);
+}
+function computeGazSalesFor(dayState){
+  return BOTTLES.map(b => {
+    const g = (dayState.gaz||{})[b.key] || {};
+    const pleinesVendues = Math.max(0, num(g.ouvPleines) - num(g.fermPleines));
+    const videsRecues = Math.max(0, num(g.fermVides) - num(g.ouvVides));
+    const recharges = Math.min(videsRecues, pleinesVendues);
+    const consignes = Math.max(0, pleinesVendues - recharges);
+    const montant = recharges * num(g.prixRecharge) + consignes * num(g.prixConsigne);
+    return { ...b, recharges, consignes, montant };
+  });
+}
+function renderHistory(){
+  const now = new Date();
+  const ym = now.toISOString().slice(0,7);
+  document.getElementById('monthTitle').textContent = 'Récapitulatif — ' + now.toLocaleDateString('fr-FR',{month:'long', year:'numeric'});
+  const monthRows = historyCache.filter(r => r.shift_date.startsWith(ym));
+  let monthCA = 0, monthRecu = 0, monthEcart = 0;
+  monthRows.forEach(r => { const t = shiftTotals(r.data); monthCA += t.totalCA; monthRecu += t.totalRecu; monthEcart += t.ecart; });
+  document.getElementById('monthRecap').innerHTML = monthRows.length ? `
+    <div class="summary-line"><span>Jours travaillés</span><span class="v">${monthRows.length}</span></div>
+    <div class="summary-line"><span>Total vendu</span><span class="v">${fmt(monthCA)} F</span></div>
+    <div class="summary-line"><span>Total reçu</span><span class="v">${fmt(monthRecu)} F</span></div>
+    <div class="summary-line total"><span>Écart cumulé</span><span class="v" style="color:${monthEcart<0?'var(--bad)':'var(--good)'}">${monthEcart>0?'+':''}${fmt(monthEcart)} F</span></div>
+  ` : '<div class="empty">Aucune journée clôturée ce mois-ci</div>';
+
+  document.getElementById('histList').innerHTML = historyCache.map(r => {
+    const t = shiftTotals(r.data);
+    const d = new Date(r.shift_date + 'T00:00:00');
+    return `
+    <div class="hist-item" onclick="openHistoryDetail('${r.shift_date}')">
+      <div class="hd">
+        <div class="date">${d.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
+        <div class="sub">Vendu ${fmt(t.totalCA)} F · Reçu ${fmt(t.totalRecu)} F</div>
+      </div>
+      <div class="he ${t.ecart<0?'bad':'good'}">${t.ecart>0?'+':''}${fmt(t.ecart)}</div>
+    </div>`;
+  }).join('') || '<div class="empty">Aucune journée archivée pour l’instant</div>';
+}
+function openHistoryDetail(dateStr){
+  const row = historyCache.find(r => r.shift_date === dateStr);
+  if(!row) return;
+  const d = row.data;
+  const t = shiftTotals(d);
+  const dObj = new Date(dateStr + 'T00:00:00');
+  const ok = t.ecart >= 0;
+  document.getElementById('detailInfoBox').innerHTML = `
+    <div class="summary-line"><span>Station</span><span class="v">${d.stationName || '—'}</span></div>
+    <div class="summary-line"><span>Pompiste</span><span class="v">${d.pompisteName || '—'}</span></div>
+    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>
+    <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
+  document.getElementById('detailBox').innerHTML = `
+    <div class="situation-box ${ok?'ok':'bad'}">
+      <div class="tag">${dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'})}</div>
+      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
+      <div class="hint">Reçu (${fmt(t.totalRecu)}) − Vendu (${fmt(t.totalCA)})</div>
+    </div>`;
+  document.getElementById('detailFuels').innerHTML = t.fuelSales.map(f => `
+    <div class="summary-line"><span>${f.label} <span style="color:var(--muted)">— ${f.qty.toFixed(1)} L</span></span><span class="v">${fmt(f.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('detailGaz').innerHTML = t.gazSales.map(g => `
+    <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('detailPay').innerHTML = VTYPES.map(v => `
+    <div class="summary-line"><span>${v.ic} ${v.label}</span><span class="v">${fmt(t.pay[v.key])}</span></div>`).join('');
+  document.getElementById('detailVersementsList').innerHTML = renderVersementsReadOnly(d.versements);
+  document.getElementById('detailDepenses').innerHTML = (d.depenses || []).map(dep => `
+    <div class="summary-line"><span>${dep.motif}</span><span class="v">-${fmt(dep.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
+  document.getElementById('detailFinal').innerHTML = `
+    <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(t.totalCA)} F</span></div>
+    <div class="summary-line total"><span>Reçu total</span><span class="v">${fmt(t.totalRecu)} F</span></div>`;
+  showStage('detail');
+}// ============================================================
+// ESPACE SUPERVISEUR
+// ============================================================
+function showSupStage(stage){
+  document.querySelectorAll('#supervisorRoot .view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-sup-' + stage).classList.add('active');
+}
+async function initSupervisor(){
+  document.getElementById('appRoot').classList.add('hidden');
+  document.getElementById('supervisorRoot').classList.remove('hidden');
+  if(!profileInfo.station_name){
+    showSupStage('station-setup');
+  } else {
+    document.getElementById('supStationName').textContent = profileInfo.station_name;
+    document.getElementById('supStationLine').textContent = 'Superviseur — ' + profileInfo.station_name;
+    showSupStage('list');
+    await loadSupervisorPompistes();
+  }
+}
+async function saveSupervisorStation(){
+  const val = document.getElementById('supStationInput').value.trim();
+  const msg = document.getElementById('supSetupMsg');
+  if(!val){ msg.textContent = 'Indiquez le nom de la station.'; msg.style.color = 'var(--bad)'; return; }
+  try{
+    const { error } = await sb.from('profiles').upsert({ id: currentUser.id, station_name: val, role: 'superviseur' });
+    if(error) throw error;
+    profileInfo.station_name = val;
+    document.getElementById('supStationName').textContent = val;
+    document.getElementById('supStationLine').textContent = 'Superviseur — ' + val;
+    showSupStage('list');
+    await loadSupervisorPompistes();
+  }catch(e){ msg.textContent = 'Erreur : ' + e.message; msg.style.color = 'var(--bad)'; }
+}
+async function loadSupervisorPompistes(){
+  const box = document.getElementById('supPompisteList');
+  box.innerHTML = '<div class="empty">Chargement…</div>';
+  try{
+    const { data: pompistes, error } = await sb.from('profiles')
+      .select('id,full_name')
+      .eq('station_name', profileInfo.station_name)
+      .eq('role', 'pompiste');
+    if(error) throw error;
+    if(!pompistes || !pompistes.length){ box.innerHTML = '<div class="empty">Aucun pompiste trouvé pour cette station pour l’instant.</div>'; return; }
+    const today = todayDate();
+    const rows = [];
+    for(const p of pompistes){
+      const { data: shift } = await sb.from('shifts').select('data').eq('user_id', p.id).eq('shift_date', today).maybeSingle();
+      rows.push({ profile: p, shift: shift ? shift.data : null });
+    }
+    box.innerHTML = rows.map(r => {
+      const st = r.shift ? r.shift.status : 'none';
+      const label = st === 'open' ? 'Poste ouvert' : st === 'closed' ? 'Poste clôturé' : 'Pas encore commencé';
+      const dotClass = st === 'open' ? 'open' : st === 'closed' ? 'closed' : 'none';
+      let ecartTxt = '';
+      if(st === 'closed'){
+        const t = shiftTotals(r.shift);
+        ecartTxt = ` · ${t.ecart>0?'+':''}${fmt(t.ecart)} F`;
+      }
+      return `
+      <div class="hist-item" style="cursor:default">
+        <div class="hd" onclick="openSupervisorDetail('${r.profile.id}')" style="cursor:pointer">
+          <div class="date">${r.profile.full_name || 'Sans nom'}</div>
+          <div class="sub"><span class="status-dot ${dotClass}" style="display:inline-block;margin-right:4px"></span>${label}${ecartTxt}</div>
+        </div>
+        <button class="del" onclick="openSupervisorHistory('${r.profile.id}','${(r.profile.full_name || 'Sans nom').replace(/'/g,"\\'")}')" style="font-size:11px;white-space:nowrap;color:var(--amber)">📅 Historique</button>
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">Erreur de chargement : ' + e.message + '</div>';
+  }
+}
+async function openSupervisorDetail(pompisteId){
+  const { data, error } = await sb.from('shifts').select('data').eq('user_id', pompisteId).eq('shift_date', todayDate()).maybeSingle();
+  const { data: profRow } = await sb.from('profiles').select('full_name').eq('id', pompisteId).maybeSingle();
+  if(error || !data || !data.data || data.data.status === 'none'){
+    alert("Ce pompiste n'a pas encore ouvert son poste aujourd'hui.");
+    return;
+  }
+  renderSupervisorDay(profRow?.full_name || '—', data.data, new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'}));
+  document.getElementById('supDetailBackLink').setAttribute('onclick', "showSupStage('list')");
+  document.getElementById('supDetailBackLink').textContent = '← Retour à la liste';
+  showSupStage('detail');
+}
+
+let supHistoryCache = [];
+async function openSupervisorHistory(pompisteId, pompisteName){
+  document.getElementById('supHistoryTitle').textContent = 'Historique — ' + pompisteName;
+  const box = document.getElementById('supHistoryList');
+  box.innerHTML = '<div class="empty">Chargement…</div>';
+  showSupStage('history');
+  try{
+    const { data, error } = await sb.from('shifts')
+      .select('shift_date,data')
+      .eq('user_id', pompisteId)
+      .order('shift_date', { ascending:false })
+      .limit(90);
+    if(error) throw error;
+    supHistoryCache = (data || []).filter(r => r.data && r.data.status === 'closed');
+    if(!supHistoryCache.length){ box.innerHTML = '<div class="empty">Aucune journée clôturée pour ce pompiste.</div>'; return; }
+    box.innerHTML = supHistoryCache.map(r => {
+      const t = shiftTotals(r.data);
+      const d = new Date(r.shift_date + 'T00:00:00');
+      return `
+      <div class="hist-item" onclick="openSupervisorDayDetail('${r.shift_date}','${pompisteName.replace(/'/g,"\\'")}')">
+        <div class="hd">
+          <div class="date">${d.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
+          <div class="sub">Vendu ${fmt(t.totalCA)} F · Reçu ${fmt(t.totalRecu)} F</div>
+        </div>
+        <div class="he ${t.ecart<0?'bad':'good'}">${t.ecart>0?'+':''}${fmt(t.ecart)}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">Erreur de chargement : ' + e.message + '</div>';
+  }
+}
+function openSupervisorDayDetail(dateStr, pompisteName){
+  const row = supHistoryCache.find(r => r.shift_date === dateStr);
+  if(!row) return;
+  const dObj = new Date(dateStr + 'T00:00:00');
+  renderSupervisorDay(pompisteName, row.data, dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}));
+  document.getElementById('supDetailBackLink').setAttribute('onclick', "showSupStage('history')");
+  document.getElementById('supDetailBackLink').textContent = '← Retour à l\'historique';
+  showSupStage('detail');
+}
+function renderSupervisorDay(pompisteName, d, dateLabel){
+  const t = shiftTotals(d);
+  const ok = t.ecart >= 0;
+  document.getElementById('supDetailInfoBox').innerHTML = `
+    <div class="summary-line"><span>Pompiste</span><span class="v">${pompisteName || '—'}</span></div>
+    <div class="summary-line"><span>Poste / Îlot</span><span class="v">${d.posteNumber || '—'} / ${d.ilotNumber || '—'}</span></div>
+    <div class="summary-line"><span>Statut</span><span class="v">${d.status === 'closed' ? 'Clôturé' : 'En cours'}</span></div>
+    <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
+  document.getElementById('supDetailBox').innerHTML = `
+    <div class="situation-box ${ok?'ok':'bad'}">
+      <div class="tag">${dateLabel}</div>
+      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
+      <div class="hint">Reçu (${fmt(t.totalRecu)}) − Vendu (${fmt(t.totalCA)})</div>
+    </div>`;
+  document.getElementById('supDetailFuels').innerHTML = t.fuelSales.map(f => `
+    <div class="summary-line"><span>${f.label} <span style="color:var(--muted)">— ${f.qty.toFixed(1)} L</span></span><span class="v">${fmt(f.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('supDetailGaz').innerHTML = t.gazSales.map(g => `
+    <div class="summary-line"><span>${g.label} <span style="color:var(--muted)">— ${g.recharges} rech. / ${g.consignes} cons.</span></span><span class="v">${fmt(g.montant)}</span></div>`).join('') || '<div class="empty">Aucune donnée</div>';
+  document.getElementById('supDetailPay').innerHTML = VTYPES.map(v => `
+    <div class="summary-line"><span>${v.ic} ${v.label}</span><span class="v">${fmt(t.pay[v.key])}</span></div>`).join('');
+  document.getElementById('supDetailVersementsList').innerHTML = renderVersementsReadOnly(d.versements);
+  document.getElementById('supDetailDepenses').innerHTML = (d.depenses || []).map(dep => `
+    <div class="summary-line"><span>${dep.motif}</span><span class="v">-${fmt(dep.montant)}</span></div>`).join('') || '<div class="empty">Aucune dépense</div>';
+  document.getElementById('supDetailFinal').innerHTML = `
+    <div class="summary-line total"><span>Vendu théorique</span><span class="v">${fmt(t.totalCA)} F</span></div>
+    <div class="summary-line total"><span>Reçu total</span><span class="v">${fmt(t.totalRecu)} F</span></div>`;
+  showSupStage('detail');
+}
+
+// ============================================================
+// ESPACE BOUTIQUE
+// ============================================================
+const BOU_OPTYPES = [
+  { key:'depot',   label:'Dépôt',   ic:'⬇️' },
+  { key:'retrait', label:'Retrait', ic:'⬆️' },
+  { key:'vente',   label:'Vente',   ic:'🛒' },
+];
+let bouProducts = [];
+let bouState = defaultBoutiqueState();
+let currentBouOpType = 'depot';
+let currentBouStage = 'ouverture';
+let currentEditOpId = null;
+let currentEditProdId = null;
+let bouHistoryCache = [];
+
+function defaultBoutiqueState(){
+  return {
+    status: 'none', openedAt: null, closedAt: null,
+    stationName: '', hotesseName: '', signature: '',
+    fondsCaisse: '', montantCompte: '',
+    retraits: [], depots: [], ventes: [],
+  };
+}
+
+async function initBoutique(){
+  document.getElementById('appRoot').classList.add('hidden');
+  document.getElementById('supervisorRoot').classList.add('hidden');
+  document.getElementById('boutiqueRoot').classList.remove('hidden');
+  await loadBoutiqueProducts();
+  await loadStationOptions();
+  await loadTodayBoutiqueShift();
+}
+async function loadBoutiqueProducts(){
+  try{
+    const { data, error } = await sb.from('profiles').select('boutique_products').eq('id', currentUser.id).maybeSingle();
+    if(!error && data && Array.isArray(data.boutique_products)){ bouProducts = data.boutique_products; }
+  }catch(e){ console.warn('Catalogue indisponible :', e.message); }
+}
+async function persistBoutiqueProducts(){
+  try{ await sb.from('profiles').upsert({ id: currentUser.id, boutique_products: bouProducts }); }
+  catch(e){ console.warn('Sauvegarde catalogue impossible :', e.message); }
+}
+
+// ---------- Catalogue produits ----------
+function renderBoutiqueCatalogue(){
+  document.getElementById('bouProdCount').textContent = bouProducts.length ? `(${bouProducts.length})` : '';
+  document.getElementById('bouProdList').innerHTML = bouProducts.map(p => `
+    <div class="list-item">
+      <span class="ic">📦</span>
+      <div class="info"><div class="t">${p.name}</div><div class="s">${fmt(p.price)} FCFA / unité</div></div>
+      <button class="del" onclick="editBoutiqueProduct('${p.id}')" style="color:var(--amber)">✎</button>
+      <button class="del" onclick="removeBoutiqueProduct('${p.id}')">✕</button>
+    </div>`).join('') || '<div class="empty">Aucun produit enregistré — ajoutez-en un ci-dessus</div>';
+}
+async function addBoutiqueProduct(){
+  const name = document.getElementById('bouProdName').value.trim();
+  const price = num(document.getElementById('bouProdPrice').value);
+  if(!name){ alert('Indiquez le nom du produit.'); return; }
+  if(price <= 0){ alert('Indiquez un prix.'); return; }
+  if(currentEditProdId){
+    const p = bouProducts.find(p => p.id === currentEditProdId);
+    if(p){ p.name = name; p.price = price; }
+    cancelEditBoutiqueProduct();
+  } else {
+    bouProducts.push({ id: uid(), name, price });
+    document.getElementById('bouProdName').value = '';
+    document.getElementById('bouProdPrice').value = '';
+  }
+  renderBoutiqueCatalogue();
+  await persistBoutiqueProducts();
+}
+function editBoutiqueProduct(id){
+  const p = bouProducts.find(p => p.id === id);
+  if(!p) return;
+  currentEditProdId = id;
+  document.getElementById('bouProdName').value = p.name;
+  document.getElementById('bouProdPrice').value = p.price;
+  document.getElementById('bouAddProdBtn').textContent = '✓ Enregistrer la modification';
+  document.getElementById('bouCancelProdEditBtn').classList.remove('hidden');
+}
+function cancelEditBoutiqueProduct(){
+  currentEditProdId = null;
+  document.getElementById('bouProdName').value = '';
+  document.getElementById('bouProdPrice').value = '';
+  document.getElementById('bouAddProdBtn').textContent = '+ Ajouter au catalogue';
+  document.getElementById('bouCancelProdEditBtn').classList.add('hidden');
+}
+async function removeBoutiqueProduct(id){
+  if(!confirm('Supprimer ce produit du catalogue ?')) return;
+  bouProducts = bouProducts.filter(p => p.id !== id);
+  renderBoutiqueCatalogue();
+  await persistBoutiqueProducts();
+}
+
+// ---------- Navigation ----------
+function showBouStage(stage){
+  currentBouStage = stage;
+  document.querySelectorAll('#boutiqueRoot .view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-bou-' + stage).classList.add('active');
+}
+function switchBouTab(tab){
+  document.querySelectorAll('.tab[data-bou-tab]').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-bou-tab="${tab}"]`).classList.add('active');
+  if(tab === 'historique'){ loadBoutiqueHistory(); showBouStage('historique'); }
+  else if(tab === 'catalogue'){ renderBoutiqueCatalogue(); showBouStage('catalogue'); }
+  else { routeBouStage(); }
+}
+function routeBouStage(){
+  updateBouStatusHeader();
+  if(bouState.status === 'none'){ renderBoutiqueOuverture(); showBouStage('ouverture'); }
+  else if(bouState.status === 'open'){ renderBoutiqueService(); showBouStage('service'); }
+  else { computeAndShowBoutiqueSituation(true); }
+  document.querySelector('.tab[data-bou-tab="service"]').classList.add('active');
+  document.querySelector('.tab[data-bou-tab="catalogue"]').classList.remove('active');
+  document.querySelector('.tab[data-bou-tab="historique"]').classList.remove('active');
+}
+function updateBouStatusHeader(){
+  const dot = document.getElementById('bouStatusDot');
+  const txt = document.getElementById('bouStatusText');
+  dot.className = 'status-dot ' + (bouState.status === 'open' ? 'open' : bouState.status === 'closed' ? 'closed' : 'none');
+  if(bouState.status === 'open') txt.textContent = 'Boutique ouverte depuis ' + (bouState.openedAt ? new Date(bouState.openedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '');
+  else if(bouState.status === 'closed') txt.textContent = 'Boutique clôturée — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+  else txt.textContent = 'Boutique non ouverte — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+}
+
+// ---------- Persistence (réutilise la table shifts) ----------
+async function loadTodayBoutiqueShift(){
+  try{
+    const { data, error } = await sb.from('shifts').select('data').eq('user_id', currentUser.id).eq('shift_date', todayDate()).maybeSingle();
+    if(error) throw error;
+    if(data && data.data && data.data.status && data.data.status !== 'none'){
+      const saved = data.data;
+      const def = defaultBoutiqueState();
+      bouState = Object.assign(def, saved);
+      bouState.retraits = Array.isArray(saved.retraits) ? saved.retraits : [];
+      bouState.depots = Array.isArray(saved.depots) ? saved.depots : [];
+      bouState.ventes = Array.isArray(saved.ventes) ? saved.ventes : [];
+    } else {
+      bouState = defaultBoutiqueState();
+    }
+  }catch(e){ console.warn('Chargement impossible :', e.message); bouState = defaultBoutiqueState(); }
+  routeBouStage();
+}
+async function persistBoutique(){
+  try{
+    const { error } = await sb.from('shifts').upsert({
+      user_id: currentUser.id, shift_date: todayDate(), data: bouState, updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,shift_date' });
+    if(error) throw error;
+    return true;
+  }catch(e){ console.warn('Sauvegarde impossible :', e.message); return false; }
+}
+
+// ---------- Ouverture ----------
+function renderBoutiqueOuverture(){
+  const currentStation = bouState.stationName || profileInfo.station_name || '';
+  const sel = document.getElementById('bouInfoStation');
+  const newInput = document.getElementById('bouInfoStationNew');
+  sel.innerHTML = '<option value="">— Choisir une station —</option>'
+    + stationOptions.map(s => `<option value="${s}">${s}</option>`).join('')
+    + '<option value="__new__">➕ Nouvelle station...</option>';
+  if(currentStation && stationOptions.includes(currentStation)){ sel.value = currentStation; newInput.classList.add('hidden'); }
+  else if(currentStation){ sel.value = '__new__'; newInput.value = currentStation; newInput.classList.remove('hidden'); }
+  else { newInput.classList.add('hidden'); }
+  sel.onchange = e => {
+    if(e.target.value === '__new__'){ newInput.classList.remove('hidden'); newInput.value=''; newInput.focus(); bouState.stationName=''; }
+    else { newInput.classList.add('hidden'); bouState.stationName = e.target.value; }
+  };
+  newInput.oninput = e => bouState.stationName = e.target.value;
+
+  document.getElementById('bouInfoHotesse').value = bouState.hotesseName || profileInfo.full_name || '';
+  document.getElementById('bouInfoHotesse').oninput = e => bouState.hotesseName = e.target.value;
+
+  document.getElementById('bouFondsCaisse').value = bouState.fondsCaisse || '';
+  document.getElementById('bouFondsCaisse').oninput = e => bouState.fondsCaisse = e.target.value;
+}
+async function openBoutiqueShift(){
+  if(!bouState.stationName || !bouState.stationName.trim()){
+    document.getElementById('bouOuvStatusMsg').textContent = 'Veuillez choisir ou saisir le nom de la station.';
+    document.getElementById('bouOuvStatusMsg').style.color = 'var(--bad)';
+    return;
+  }
+  bouState.status = 'open';
+  bouState.openedAt = new Date().toISOString();
+  try{
+    await sb.from('profiles').upsert({
+      id: currentUser.id,
+      full_name: bouState.hotesseName || profileInfo.full_name,
+      station_name: bouState.stationName || profileInfo.station_name
+    });
+  }catch(e){ console.warn('Synchronisation du profil impossible :', e.message); }
+  const ok = await persistBoutique();
+  const msg = document.getElementById('bouOuvStatusMsg');
+  if(ok){ routeBouStage(); } else { msg.textContent = "Échec de l'enregistrement — vérifiez votre connexion."; }
+}
+
+// ---------- Journée : opérations ----------
+function renderBoutiqueService(){
+  renderBouOpGrid();
+  renderBouOpFields();
+  renderBouOpList();
+}
+function renderBouOpGrid(){
+  document.getElementById('bouOpGrid').innerHTML = BOU_OPTYPES.map(t => `
+    <div class="vtype-btn ${t.key===currentBouOpType?'active':''}" onclick="selectBouOpType('${t.key}')">
+      <span class="ic">${t.ic}</span><span class="lb">${t.label}</span>
+    </div>`).join('');
+}
+function selectBouOpType(key){ currentBouOpType = key; renderBouOpGrid(); renderBouOpFields(); }
+function renderBouOpFields(){
+  const box = document.getElementById('bouOpFields');
+  if(currentBouOpType === 'vente'){
+    if(!bouProducts.length){
+      box.innerHTML = '<div class="empty">Aucun produit dans le catalogue — ajoutez-en depuis l\'onglet Catalogue.</div>';
+      return;
+    }
+    box.innerHTML = `
+      <select class="note-input" id="bouVenteProduit">
+        ${bouProducts.map(p => `<option value="${p.id}">${p.name} — ${fmt(p.price)} F</option>`).join('')}
+      </select>
+      <div class="stock-row">
+        <div class="field"><span class="field-label">Quantité</span><input class="led-input" id="bouVenteQte" inputmode="numeric" value="1"></div>
+        <div class="field"><span class="field-label">Total</span><input class="led-input" id="bouVenteTotal" disabled></div>
+      </div>`;
+    document.getElementById('bouVenteProduit').onchange = updateBouVenteTotal;
+    document.getElementById('bouVenteQte').oninput = updateBouVenteTotal;
+    updateBouVenteTotal();
+  } else {
+    box.innerHTML = `<input class="led-input" style="margin-bottom:10px" id="bouOpMontant" inputmode="decimal" placeholder="Montant (FCFA)">`;
+  }
+}
+function updateBouVenteTotal(){
+  const prodId = document.getElementById('bouVenteProduit').value;
+  const prod = bouProducts.find(p => p.id === prodId);
+  const qte = num(document.getElementById('bouVenteQte').value) || 0;
+  document.getElementById('bouVenteTotal').value = prod ? fmt(prod.price * qte) : 0;
+}
+async function addBoutiqueOp(){
+  const note = document.getElementById('bouOpNote').value.trim();
+  const time = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  if(currentBouOpType === 'vente'){
+    if(!bouProducts.length){ alert("Ajoutez au moins un produit au catalogue avant d'enregistrer une vente."); return; }
+    const prodId = document.getElementById('bouVenteProduit').value;
+    const prod = bouProducts.find(p => p.id === prodId);
+    const qte = num(document.getElementById('bouVenteQte').value);
+    if(!prod || qte <= 0){ alert('Choisissez un produit et une quantité valide.'); return; }
+    const montant = prod.price * qte;
+    if(currentEditOpId){
+      const v = bouState.ventes.find(v => v.id === currentEditOpId);
+      if(v){ v.productId = prod.id; v.productName = prod.name; v.prixUnitaire = prod.price; v.quantite = qte; v.montant = montant; v.note = note; }
+    } else {
+      bouState.ventes.push({ id: uid(), productId: prod.id, productName: prod.name, prixUnitaire: prod.price, quantite: qte, montant, note, time });
+    }
+  } else {
+    const montant = num(document.getElementById('bouOpMontant').value);
+    if(montant <= 0){ alert('Indiquez un montant.'); return; }
+    const list = currentBouOpType === 'retrait' ? bouState.retraits : bouState.depots;
+    if(currentEditOpId){
+      const v = list.find(v => v.id === currentEditOpId);
+      if(v){ v.montant = montant; v.note = note; }
+    } else {
+      list.push({ id: uid(), montant, note, time });
+    }
+  }
+  cancelEditBouOp();
+  renderBouOpList();
+  await persistBoutique();
+}
+function renderBouOpList(){
+  const all = [
+    ...bouState.retraits.map(v => ({ ...v, kind:'retrait' })),
+    ...bouState.depots.map(v => ({ ...v, kind:'depot' })),
+    ...bouState.ventes.map(v => ({ ...v, kind:'vente' })),
+  ].sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  document.getElementById('bouOpCount').textContent = all.length ? `(${all.length})` : '';
+  document.getElementById('bouOpList').innerHTML = all.slice().reverse().map(v => {
+    const meta = BOU_OPTYPES.find(t => t.key === v.kind);
+    let title = meta.label;
+    let sub = v.time || '';
+    if(v.kind === 'vente'){ title = v.productName; sub += ` · ${v.quantite} × ${fmt(v.prixUnitaire)} F`; }
+    if(v.note) sub += ' · ' + v.note;
+    const sign = v.kind === 'retrait' ? '-' : '+';
+    return `
+    <div class="list-item">
+      <span class="ic">${meta.ic}</span>
+      <div class="info"><div class="t">${title}</div><div class="s">${sub}</div></div>
+      <span class="amt">${sign}${fmt(v.montant)}</span>
+      <button class="del" onclick="editBouOp('${v.kind}','${v.id}')" style="color:var(--amber)">✎</button>
+      <button class="del" onclick="removeBouOp('${v.kind}','${v.id}')">✕</button>
+    </div>`;
+  }).join('') || '<div class="empty">Aucune opération enregistrée</div>';
+}
+function editBouOp(kind, id){
+  const list = kind === 'retrait' ? bouState.retraits : kind === 'depot' ? bouState.depots : bouState.ventes;
+  const v = list.find(v => v.id === id);
+  if(!v) return;
+  currentEditOpId = id;
+  currentBouOpType = kind;
+  renderBouOpGrid();
+  renderBouOpFields();
+  if(kind === 'vente'){
+    document.getElementById('bouVenteProduit').value = v.productId;
+    document.getElementById('bouVenteQte').value = v.quantite;
+    updateBouVenteTotal();
+  } else {
+    document.getElementById('bouOpMontant').value = v.montant;
+  }
+  document.getElementById('bouOpNote').value = v.note || '';
+  document.getElementById('bouAddOpBtn').textContent = '✓ Enregistrer la modification';
+  document.getElementById('bouCancelOpEditBtn').classList.remove('hidden');
+}
+function cancelEditBouOp(){
+  currentEditOpId = null;
+  document.getElementById('bouOpNote').value = '';
+  document.getElementById('bouAddOpBtn').textContent = '+ Ajouter cette opération';
+  document.getElementById('bouCancelOpEditBtn').classList.add('hidden');
+  renderBouOpFields();
+}
+async function removeBouOp(kind, id){
+  if(kind === 'retrait') bouState.retraits = bouState.retraits.filter(v => v.id !== id);
+  else if(kind === 'depot') bouState.depots = bouState.depots.filter(v => v.id !== id);
+  else bouState.ventes = bouState.ventes.filter(v => v.id !== id);
+  renderBouOpList();
+  await persistBoutique();
+}
+function backToOpFromBoutiqueSituation(){
+  renderBoutiqueService();
+  showBouStage('service');
+}
+
+// ---------- Clôture ----------
+function goToBoutiqueClosing(){
+  document.getElementById('bouMontantCompte').value = bouState.montantCompte || '';
+  showBouStage('cloture');
+}
+
+// ---------- Situation / calculs ----------
+function bouShiftTotals(d){
+  const totalRetraits = (d.retraits||[]).reduce((s,v)=>s+v.montant,0);
+  const totalDepots = (d.depots||[]).reduce((s,v)=>s+v.montant,0);
+  const totalVentes = (d.ventes||[]).reduce((s,v)=>s+v.montant,0);
+  const fondsCaisse = num(d.fondsCaisse);
+  const attendu = fondsCaisse + totalDepots + totalVentes - totalRetraits;
+  const montantCompte = num(d.montantCompte);
+  return { totalRetraits, totalDepots, totalVentes, fondsCaisse, attendu, montantCompte, ecart: montantCompte - attendu };
+}
+function computeAndShowBoutiqueSituation(readOnly){
+  document.getElementById('bouSituInfoBox').innerHTML = `
+    <div class="summary-line"><span>Station</span><span class="v">${bouState.stationName || '—'}</span></div>
+    <div class="summary-line"><span>Hôtesse</span><span class="v">${bouState.hotesseName || '—'}</span></div>
+    <div class="summary-line"><span>Date</span><span class="v">${new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span></div>`;
+  const montantCompteInput = document.getElementById('bouMontantCompte');
+  if(montantCompteInput && montantCompteInput.value !== '') bouState.montantCompte = montantCompteInput.value;
+  const t = bouShiftTotals(bouState);
+
+  document.getElementById('bouSumRetraits').innerHTML = bouState.retraits.map(v => `
+    <div class="summary-line"><span>${v.time}${v.note?' · '+v.note:''}</span><span class="v">-${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucun retrait</div>';
+  document.getElementById('bouSumDepots').innerHTML = bouState.depots.map(v => `
+    <div class="summary-line"><span>${v.time}${v.note?' · '+v.note:''}</span><span class="v">+${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucun dépôt</div>';
+  document.getElementById('bouSumVentes').innerHTML = bouState.ventes.map(v => `
+    <div class="summary-line"><span>${v.productName} × ${v.quantite}</span><span class="v">+${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucune vente</div>';
+  document.getElementById('bouSumFinal').innerHTML = `
+    <div class="summary-line"><span>Fonds de caisse départ</span><span class="v">${fmt(t.fondsCaisse)} F</span></div>
+    <div class="summary-line"><span>+ Dépôts</span><span class="v">${fmt(t.totalDepots)} F</span></div>
+    <div class="summary-line"><span>+ Ventes produits</span><span class="v">${fmt(t.totalVentes)} F</span></div>
+    <div class="summary-line"><span>− Retraits</span><span class="v">-${fmt(t.totalRetraits)} F</span></div>
+    <div class="summary-line total"><span>Montant attendu en caisse</span><span class="v">${fmt(t.attendu)} F</span></div>
+    <div class="summary-line total"><span>Montant compté</span><span class="v">${fmt(t.montantCompte)} F</span></div>`;
+  const ok = t.ecart >= 0;
+  document.getElementById('bouSituationBox').innerHTML = `
+    <div class="situation-box ${ok?'ok':'bad'}">
+      <div class="tag">${t.ecart === 0 ? 'Caisse juste' : (t.ecart < 0 ? 'Manquant' : 'Excédent')}</div>
+      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
+      <div class="hint">Compté (${fmt(t.montantCompte)}) − Attendu (${fmt(t.attendu)})</div>
+    </div>`;
+
+  document.getElementById('bouCloseShiftBtn').classList.toggle('hidden', !!readOnly);
+  document.getElementById('bouBackToOpBtn').classList.toggle('hidden', !!readOnly);
+  document.getElementById('bouBackToClotureBtn').classList.toggle('hidden', !!readOnly);
+  if(readOnly){
+    document.getElementById('bouSignaturePanel').classList.remove('hidden');
+    document.getElementById('bouSignatureInput').style.display = 'none';
+    document.querySelector('#bouSignaturePanel p').classList.add('hidden');
+    let confirmEl = document.getElementById('bouSignatureConfirmed');
+    if(!confirmEl){
+      confirmEl = document.createElement('div');
+      confirmEl.id = 'bouSignatureConfirmed';
+      confirmEl.style.cssText = 'font-size:14px;font-weight:700;color:var(--good);';
+      document.getElementById('bouSignaturePanel').appendChild(confirmEl);
+    }
+    confirmEl.textContent = '✓ Signé par ' + (bouState.signature || '—');
+  } else {
+    document.getElementById('bouSignaturePanel').classList.remove('hidden');
+    document.getElementById('bouSignatureInput').style.display = '';
+    document.querySelector('#bouSignaturePanel p').classList.remove('hidden');
+    const confirmEl = document.getElementById('bouSignatureConfirmed');
+    if(confirmEl) confirmEl.remove();
+    document.getElementById('bouSignatureInput').value = bouState.signature || bouState.hotesseName || '';
+  }
+  showBouStage('situation');
+  window._lastBouSituation = t;
+}
+function shareBoutiqueWhatsApp(){
+  const s = window._lastBouSituation;
+  if(!s) return;
+  const dateStr = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  let msg = `*Situation boutique du ${dateStr}*\n`;
+  if(bouState.stationName) msg += `Station : ${bouState.stationName}\n`;
+  if(bouState.hotesseName) msg += `Hôtesse : ${bouState.hotesseName}\n\n`;
+  msg += `Fonds de caisse départ : ${fmt(s.fondsCaisse)} F\n`;
+  msg += `Dépôts : +${fmt(s.totalDepots)} F\n`;
+  msg += `Ventes produits : +${fmt(s.totalVentes)} F\n`;
+  msg += `Retraits : -${fmt(s.totalRetraits)} F\n`;
+  msg += `Attendu en caisse : ${fmt(s.attendu)} F\n`;
+  msg += `Compté : ${fmt(s.montantCompte)} F\n`;
+  msg += `Écart : ${s.ecart>0?'+':''}${fmt(s.ecart)} F ${s.ecart<0?'(manquant)':(s.ecart>0?'(excédent)':'(caisse juste)')}\n`;
+  msg += `\n_Signé par ${bouState.signature || bouState.hotesseName || '—'}_`;
+  const url = 'https://wa.me/?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+}
+async function closeBoutiqueShift(){
+  const sig = document.getElementById('bouSignatureInput').value.trim();
+  if(!sig){
+    document.getElementById('bouSignatureMsg').textContent = 'Veuillez taper votre nom pour signer avant de clôturer.';
+    document.getElementById('bouSignatureMsg').style.color = 'var(--bad)';
+    document.getElementById('bouSignatureInput').focus();
+    return;
+  }
+  bouState.signature = sig;
+  bouState.status = 'closed';
+  bouState.closedAt = new Date().toISOString();
+  const ok = await persistBoutique();
+  const msg = document.getElementById('bouStatusMsg');
+  if(ok){
+    msg.textContent = '✓ Boutique clôturée et archivée';
+    updateBouStatusHeader();
+    document.getElementById('bouCloseShiftBtn').classList.add('hidden');
+    document.getElementById('bouBackToOpBtn').classList.add('hidden');
+    document.getElementById('bouBackToClotureBtn').classList.add('hidden');
+  } else { msg.textContent = "Échec de l'enregistrement — réessayez."; }
+}
+
+// ---------- Historique ----------
+async function loadBoutiqueHistory(){
+  try{
+    const { data, error } = await sb.from('shifts').select('shift_date,data').eq('user_id', currentUser.id).order('shift_date', { ascending:false }).limit(90);
+    if(error) throw error;
+    bouHistoryCache = (data || []).filter(r => r.data && r.data.status === 'closed' && Object.prototype.hasOwnProperty.call(r.data, 'fondsCaisse'));
+  }catch(e){ console.warn('Historique indisponible :', e.message); bouHistoryCache = []; }
+  renderBoutiqueHistory();
+}
+function renderBoutiqueHistory(){
+  const now = new Date();
+  const ym = now.toISOString().slice(0,7);
+  document.getElementById('bouMonthTitle').textContent = 'Récapitulatif — ' + now.toLocaleDateString('fr-FR',{month:'long', year:'numeric'});
+  const monthRows = bouHistoryCache.filter(r => r.shift_date.startsWith(ym));
+  let monthVentes=0, monthDepots=0, monthRetraits=0, monthEcart=0;
+  monthRows.forEach(r => { const t = bouShiftTotals(r.data); monthVentes+=t.totalVentes; monthDepots+=t.totalDepots; monthRetraits+=t.totalRetraits; monthEcart+=t.ecart; });
+  document.getElementById('bouMonthRecap').innerHTML = monthRows.length ? `
+    <div class="summary-line"><span>Jours travaillés</span><span class="v">${monthRows.length}</span></div>
+    <div class="summary-line"><span>Total ventes produits</span><span class="v">${fmt(monthVentes)} F</span></div>
+    <div class="summary-line"><span>Total dépôts</span><span class="v">${fmt(monthDepots)} F</span></div>
+    <div class="summary-line"><span>Total retraits</span><span class="v">${fmt(monthRetraits)} F</span></div>
+    <div class="summary-line total"><span>Écart cumulé</span><span class="v" style="color:${monthEcart<0?'var(--bad)':'var(--good)'}">${monthEcart>0?'+':''}${fmt(monthEcart)} F</span></div>
+  ` : '<div class="empty">Aucune journée clôturée ce mois-ci</div>';
+  document.getElementById('bouHistList').innerHTML = bouHistoryCache.map(r => {
+    const t = bouShiftTotals(r.data);
+    const d = new Date(r.shift_date + 'T00:00:00');
+    return `
+    <div class="hist-item" onclick="openBoutiqueHistoryDetail('${r.shift_date}')">
+      <div class="hd">
+        <div class="date">${d.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})}</div>
+        <div class="sub">Ventes ${fmt(t.totalVentes)} F · Compté ${fmt(t.montantCompte)} F</div>
+      </div>
+      <div class="he ${t.ecart<0?'bad':'good'}">${t.ecart>0?'+':''}${fmt(t.ecart)}</div>
+    </div>`;
+  }).join('') || '<div class="empty">Aucune journée archivée pour l’instant</div>';
+}
+function openBoutiqueHistoryDetail(dateStr){
+  const row = bouHistoryCache.find(r => r.shift_date === dateStr);
+  if(!row) return;
+  const d = row.data;
+  const t = bouShiftTotals(d);
+  const dObj = new Date(dateStr + 'T00:00:00');
+  const ok = t.ecart >= 0;
+  document.getElementById('bouDetailInfoBox').innerHTML = `
+    <div class="summary-line"><span>Station</span><span class="v">${d.stationName || '—'}</span></div>
+    <div class="summary-line"><span>Hôtesse</span><span class="v">${d.hotesseName || '—'}</span></div>
+    <div class="summary-line"><span>Signé par</span><span class="v" style="color:var(--good)">${d.signature || '—'}</span></div>`;
+  document.getElementById('bouDetailBox').innerHTML = `
+    <div class="situation-box ${ok?'ok':'bad'}">
+      <div class="tag">${dObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'})}</div>
+      <div class="amount">${t.ecart>0?'+':''}${fmt(t.ecart)} F</div>
+      <div class="hint">Compté (${fmt(t.montantCompte)}) − Attendu (${fmt(t.attendu)})</div>
+    </div>`;
+  document.getElementById('bouDetailRetraits').innerHTML = (d.retraits||[]).map(v => `
+    <div class="summary-line"><span>${v.time}${v.note?' · '+v.note:''}</span><span class="v">-${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucun retrait</div>';
+  document.getElementById('bouDetailDepots').innerHTML = (d.depots||[]).map(v => `
+    <div class="summary-line"><span>${v.time}${v.note?' · '+v.note:''}</span><span class="v">+${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucun dépôt</div>';
+  document.getElementById('bouDetailVentes').innerHTML = (d.ventes||[]).map(v => `
+    <div class="summary-line"><span>${v.productName} × ${v.quantite}</span><span class="v">+${fmt(v.montant)}</span></div>`).join('') || '<div class="empty">Aucune vente</div>';
+  document.getElementById('bouDetailFinal').innerHTML = `
+    <div class="summary-line"><span>Fonds de caisse départ</span><span class="v">${fmt(t.fondsCaisse)} F</span></div>
+    <div class="summary-line total"><span>Attendu en caisse</span><span class="v">${fmt(t.attendu)} F</span></div>
+    <div class="summary-line total"><span>Compté</span><span class="v">${fmt(t.montantCompte)} F</span></div>`;
+  showBouStage('detail');
+}
+</script>
+</body>
+</html>

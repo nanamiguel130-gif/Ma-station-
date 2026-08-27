@@ -1,1 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1730">
+<title>Ma Station — Pilotage intelligent</title>
+<style>
+:root{--navy:#0b1730;--blue:#1e5eff;--green:#16a66a;--orange:#ff8a00;--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#687386;--line:#e4e9f1;--red:#d92d3f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif;padding-bottom:75px}
+button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+#login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(145deg,#071020,#18396f)}
+.login-card{width:min(420px,100%);background:#fff;border-radius:25px;padding:28px;box-shadow:0 25px 70px #0005}.logo{font-size:25px;font-weight:900;color:var(--navy)}.logo span{color:var(--orange)}
+p{color:var(--muted);font-size:13px;line-height:1.5}.field{margin:12px 0}.field label{display:block;font-size:11px;font-weight:800;color:var(--muted);margin-bottom:5px}
+input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fff;outline:none}.btn{border:0;border-radius:11px;padding:12px 15px;font-weight:800}.primary{background:var(--blue);color:#fff}.light{background:#edf2f8;color:var(--navy)}.danger{background:#fff0f2;color:var(--red)}
+header{position:sticky;top:0;z-index:10;background:#f4f7fbf2;border-bottom:1px solid var(--line)}.top{max-width:1100px;margin:auto;padding:13px 15px;display:flex;align-items:center}.brand{flex:1}.brand strong{font-size:14px}.brand small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.avatar{border:0;width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;font-weight:900}
+main{max-width:1100px;margin:auto;padding:16px 14px}.view{display:none}.view.active{display:block}.hero{background:linear-gradient(135deg,var(--navy),#1a3e7b);color:#fff;padding:22px;border-radius:23px;margin-bottom:14px}.hero h1{margin:0 0 6px;font-size:22px}.hero p{color:#c9d7ef}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:12px;box-shadow:0 8px 28px #1123430d}.kpi .label{font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase}.kpi .value{font-size:22px;font-weight:900;margin:7px 0}.kpi .hint{font-size:10px;color:var(--muted)}
+.title{display:flex;justify-content:space-between;align-items:center;margin:17px 2px 9px}.title h2{font-size:15px;margin:0}.title span{font-size:10px;color:var(--muted)}
+.alert{display:flex;gap:10px;padding:11px;border-bottom:1px solid var(--line)}.alert:last-child{border:0}.alert .ico{font-size:19px}.alert strong{font-size:12px}.alert p{margin:3px 0 0;font-size:11px}.badge{display:inline-block;padding:4px 7px;border-radius:99px;font-size:9px;font-weight:900}.ok{background:#e9f8f0;color:#087849}.warn{background:#fff6df;color:#946900}.bad{background:#fff0f2;color:#b51f32}.info{background:#edf3ff;color:#1855c7}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions .btn{flex:1;min-width:125px}.person{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.person:last-child{border:0}.pic{width:37px;height:37px;border-radius:11px;background:#edf2f8;display:grid;place-items:center}.meta{flex:1}.meta strong{display:block;font-size:12px}.meta small{font-size:10px;color:var(--muted)}
+.chip{display:inline-block;padding:7px 9px;margin:3px;background:#edf2f8;border-radius:9px;font-size:10px;font-weight:800}.bar{height:8px;background:#e9eef5;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--green))}
+.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);z-index:20;display:flex;justify-content:center;padding:6px 4px}.nav button{flex:1;max-width:130px;border:0;background:transparent;color:var(--muted);padding:6px 2px;border-radius:11px;font-size:9px;font-weight:800}.nav button b{display:block;font-size:18px}.nav button.active{color:var(--blue);background:#edf3ff}
+.modal{position:fixed;inset:0;background:#06112699;z-index:50;display:none;align-items:flex-end}.modal.open{display:flex}.sheet{background:#fff;width:min(680px,100%);max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px}.close{float:right;border:0;background:#edf2f8;border-radius:50%;width:32px;height:32px}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<section id="login"><div class="login-card">
+<div class="logo">MA <span>STATION</span></div>
+<p>Supervision, contrôle, analyse et aide à la décision pour les stations-service.</p>
+<div class="field"><label>Nom complet</label><input id="name" placeholder="Nom et prénom"></div>
+<div class="field"><label>Email</label><input id="email" type="email" placeholder="nom@entreprise.com"></div>
+<div class="field"><label>Mot de passe</label><input id="password" type="password" placeholder="Mot de passe"></div>
+<div class="actions"><button class="btn primary" onclick="enterApp()">Entrer dans Ma Station</button></div>
+<p style="font-size:10px">Mode interface : cette version est autonome et ne nécessite aucune connexion serveur pour être ouverte.</p>
+</div></section>
 
+<div id="app" class="hidden">
+<header><div class="top"><div class="brand"><strong>MA STATION</strong><small id="context">Station Bafia Centre · Gérant</small></div><button class="avatar" onclick="profile()">MS</button></div></header>
+<main>
+<section id="dashboard" class="view active">
+<div class="hero"><h1 id="hello">Bonjour 👋</h1><p>Pilotage intelligent de votre station et de votre réseau.</p></div>
+<div class="grid">
+<div class="card kpi"><div class="label">CA du jour</div><div class="value">2,45 M</div><div class="hint">FCFA · +8,4 %</div></div>
+<div class="card kpi"><div class="label">Carburant vendu</div><div class="value">8 420 L</div><div class="hint">Aujourd'hui</div></div>
+<div class="card kpi"><div class="label">Écart caisse</div><div class="value">-5 000</div><div class="hint">FCFA · à contrôler</div></div>
+<div class="card kpi"><div class="label">Stock critique</div><div class="value">1</div><div class="hint">Gazole</div></div>
+</div>
+<div class="title"><h2>🚨 Alertes</h2><span>3 signalements</span></div>
+<div class="card">
+<div class="alert"><div class="ico">⚠️</div><div><strong>Écart de stock inhabituel</strong><p>Rapprocher jauge, index des pompes et dernière réception.</p></div></div>
+<div class="alert"><div class="ico">💰</div><div><strong>Écart caisse</strong><p>5 000 FCFA doivent être contrôlés avant validation.</p></div></div>
+<div class="alert"><div class="ico">👥</div><div><strong>Organisation</strong><p>Vérifier qu'un responsable est affecté à chaque activité.</p></div></div>
+</div>
+<div class="title"><h2>🤖 Propositions de gestion</h2><span>Analyse</span></div>
+<div class="card">
+<div class="alert"><div class="ico">📦</div><div><strong>Commande recommandée</strong><p>Préparer une commande de Gazole avant le seuil de sécurité.</p></div></div>
+<div class="alert"><div class="ico">📊</div><div><strong>Analyse d'écart</strong><p>Comparer ventes, stock et encaissements sur les 7 derniers jours.</p></div></div>
+</div>
+</section>
+
+<section id="operations" class="view">
+<div class="title"><h2>⛽ Opérations</h2><span>Station active</span></div>
+<div class="grid2">
+<div class="card"><h3 style="font-size:14px">Service pompiste</h3><p>Ouverture, index, versements et clôture.</p><div class="actions"><button class="btn primary" onclick="service()">Prendre un service</button><button class="btn light" onclick="closeService()">Clôturer</button></div></div>
+<div class="card"><h3 style="font-size:14px">Prix carburants</h3><p>Super <b style="float:right">856 FCFA/L</b></p><p>Gazole <b style="float:right">844 FCFA/L</b></p><p>Pétrole <b style="float:right">366 FCFA/L</b></p></div>
+</div>
+<div class="card"><h3 style="font-size:14px">Contrôle de service</h3><div class="alert"><div class="ico">🔢</div><div><strong>Index</strong><p>Ouverture et clôture par bec.</p></div></div><div class="alert"><div class="ico">💵</div><div><strong>Versements</strong><p>Comparer les paiements aux ventes.</p></div></div></div>
+</section>
+
+<section id="personnel" class="view">
+<div class="title"><h2>👥 Personnel & hiérarchie</h2><button class="btn primary" onclick="employee()">+ Ajouter</button></div>
+<div class="card"><p>Le gérant crée son personnel et Ma Station suggère le supérieur hiérarchique selon le poste.</p><div id="people"></div></div>
+<div class="card"><h3 style="font-size:13px">Postes disponibles</h3><div id="roles"></div></div>
+</section>
+
+<section id="stations" class="view">
+<div class="title"><h2>🏪 Réseau</h2><span>Multi-stations</span></div>
+<div class="card"><div class="person"><div class="pic">⛽</div><div class="meta"><strong>Station Bafia Centre</strong><small>Entreprise cliente · Active</small></div><span class="badge ok">ACTIVE</span></div><div class="person"><div class="pic">⛽</div><div class="meta"><strong>Station Foumbot</strong><small>Entreprise cliente · Active</small></div><span class="badge ok">ACTIVE</span></div></div>
+<div class="card"><h3 style="font-size:13px">Configuration</h3><p>Chaque station peut activer uniquement les activités qu'elle possède.</p><div class="actions"><button class="btn primary" onclick="config()">Configurer les activités</button><button class="btn light" onclick="employee()">Personnel</button></div></div>
+</section>
+
+<section id="reports" class="view">
+<div class="title"><h2>📊 Analyse & décisions</h2><span>Indicateurs</span></div>
+<div class="grid2"><div class="card"><h3 style="font-size:13px">Performance carburant</h3><p>Super</p><div class="bar"><i style="width:92%"></i></div><p>Gazole</p><div class="bar"><i style="width:76%"></i></div><p>Pétrole</p><div class="bar"><i style="width:44%"></i></div></div>
+<div class="card"><h3 style="font-size:13px">Commande proposée</h3><div class="alert"><div class="ico">📦</div><div><strong>Gazole : environ 6 000 L</strong><p>Proposition à valider selon le stock, la consommation et le délai fournisseur.</p></div></div></div></div>
+<div class="card"><h3 style="font-size:13px">Vue réseau</h3><table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th>Station</th><th>CA</th><th>Écart</th><th>État</th></tr><tr><td>Bafia Centre</td><td>12,4 M</td><td>-5 000</td><td><span class="badge bad">ACTION</span></td></tr><tr><td>Foumbot</td><td>11,5 M</td><td>-2 000</td><td><span class="badge warn">SURVEILLER</span></td></tr></table></div>
+</section>
+</main>
+<nav class="nav"><button class="active" onclick="nav('dashboard',this)"><b>⌂</b>Accueil</button><button onclick="nav('operations',this)"><b>⛽</b>Opérations</button><button onclick="nav('personnel',this)"><b>👥</b>Personnel</button><button onclick="nav('stations',this)"><b>🏪</b>Stations</button><button onclick="nav('reports',this)"><b>📊</b>Rapports</button></nav>
+</div>
+
+<div id="modal" class="modal" onclick="if(event.target===this)closeModal()"><div class="sheet"><button class="close" onclick="closeModal()">×</button><div id="modalBody"></div></div></div>
+<script>
+const roles=[["Pompiste","⛽","Opérationnel"],["Hôtesse boutique","🛍️","Opérationnel"],["Technicien de baie","🔧","Opérationnel"],["Croissantière","🥐","Opérationnel"],["Laveur","🚗","Opérationnel"],["Autre personnel","👷","Opérationnel"],["Chef de piste","🧭","Superviseur"],["Chef boutique","🛍️","Superviseur"],["Chef de baie","🔧","Superviseur"],["Chef de baie de lavage","🧽","Superviseur"]];
+function enterApp(){let n=document.getElementById("name").value.trim()||"Gérant";document.getElementById("login").classList.add("hidden");document.getElementById("app").classList.remove("hidden");document.getElementById("hello").textContent="Bonjour "+n.split(" ")[0]+" 👋";document.getElementById("avatar").textContent=n.split(" ").slice(0,2).map(x=>x[0]).join("").toUpperCase();renderPeople()}
+function nav(id,b){document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));b.classList.add("active")}
+function openModal(x){document.getElementById("modalBody").innerHTML=x;document.getElementById("modal").classList.add("open")}function closeModal(){document.getElementById("modal").classList.remove("open")}
+function profile(){openModal("<h2>Mon profil</h2><p>Rôle : <b>Gérant</b></p><p>Station : <b>Station Bafia Centre</b></p><button class='btn danger' onclick='location.reload()'>Se déconnecter</button>")}
+function service(){openModal("<h2>⛽ Prendre un service</h2><div class='field'><label>Poste</label><input placeholder='Poste 1'></div><div class='field'><label>Îlot</label><input placeholder='Îlot 1'></div><div class='field'><label>Index ouverture Super</label><input type='number'></div><div class='field'><label>Index ouverture Gazole</label><input type='number'></div><div class='field'><label>Index ouverture Pétrole</label><input type='number'></div><button class='btn primary' style='width:100%' onclick='closeModal();alert("Service ouvert.")'>Enregistrer et commencer</button>")}
+function closeService(){openModal("<h2>Clôture du service</h2><p>Saisissez les index de clôture et rapprochez les versements avant validation.</p><button class='btn primary' style='width:100%' onclick='closeModal();alert("Situation calculée.")'>Calculer la situation</button>")}
+function employee(){openModal("<h2>👤 Nouveau personnel</h2><div class='field'><label>Nom complet</label><input id='newName' placeholder='Nom et prénom'></div><div class='field'><label>Fonction</label><select>"+roles.map(r=>"<option>"+r[0]+"</option>").join("")+"</select></div><div class='field'><label>Supérieur hiérarchique suggéré</label><select><option>Suggestion automatique</option><option>Chef de piste</option><option>Chef boutique</option><option>Chef de baie</option><option>Chef de baie de lavage</option><option>Gérant</option></select></div><button class='btn primary' style='width:100%' onclick='alert("Personnel créé dans la configuration.");closeModal()'>Créer le personnel</button>")}
+function config(){openModal("<h2>⚙️ Configuration de la station</h2><p>Activez les activités réellement présentes.</p>"+["Piste carburant","Boutique","Baie mécanique","Baie de lavage","Restauration / croissanterie","Autre activité"].map(x=>"<label style='display:block;padding:11px 0;border-bottom:1px solid #e4e9f1;font-size:12px'><input type='checkbox' checked style='width:auto'> "+x+"</label>").join("")+"<button class='btn primary' style='width:100%;margin-top:14px' onclick='closeModal()'>Enregistrer</button>")}
+function renderPeople(){document.getElementById("people").innerHTML=roles.map(r=>"<div class='person'><div class='pic'>"+r[1]+"</div><div class='meta'><strong>"+r[0]+"</strong><small>"+r[2]+"</small></div><span class='badge "+(r[2]=="Superviseur"?"info":"warn")+"'>"+r[2]+"</span></div>").join("");document.getElementById("roles").innerHTML=roles.map(r=>"<span class='chip'>"+r[1]+" "+r[0]+"</span>").join("")}
+</script>
+</body>
+</html>

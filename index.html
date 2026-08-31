@@ -1,54 +1,2162 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+
 <title>Ma Station — Suivi de service</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
-:root{--bg:#07111f;--card:#0d1b2d;--card2:#12243a;--line:#20364e;--text:#f5f8fc;--muted:#8fa3b8;--accent:#16d98a;--accent2:#19a7ff;--danger:#ff5d67;--warn:#ffbd45;--super:#ff3b30;--gazole:#1597ff;--petrole:#9b7cff;--shadow:0 18px 50px #0005}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#06101d,#09182a);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}.app{min-height:100vh;max-width:720px;margin:auto;padding-bottom:95px}.top{position:sticky;top:0;z-index:10;padding:16px;background:#07111fee;backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-size:23px;box-shadow:0 8px 25px #16d98a33}.brand h1{font-size:17px;margin:0}.brand p{font-size:11px;color:var(--muted);margin:3px 0 0}.chip{margin-left:auto;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 11px;font-size:11px;color:var(--muted)}main{padding:18px 15px}.hero{border:1px solid var(--line);border-radius:24px;padding:20px;background:radial-gradient(circle at 100% 0,#12395b,#0d1b2d 48%);box-shadow:var(--shadow);margin-bottom:15px}.hero .kicker{font-size:11px;color:var(--accent);font-weight:800;letter-spacing:.12em;text-transform:uppercase}.hero h2{font-size:28px;line-height:1.05;margin:9px 0}.hero p{color:var(--muted);font-size:13px;margin:0;line-height:1.5}.status{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:12px;color:var(--muted)}.dot{width:9px;height:9px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 5px #ffbd4517}.dot.open{background:var(--accent);box-shadow:0 0 0 5px #16d98a17}.dot.closed{background:var(--accent2);box-shadow:0 0 0 5px #19a7ff17}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:13px}.card h3{margin:0 0 12px;font-size:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field label{display:block;font-size:10px;color:var(--muted);margin:0 0 6px}.field input,.field select,.input{width:100%;border:1px solid var(--line);background:#091727;color:var(--text);border-radius:12px;padding:12px;outline:none}.field input:focus,.field select:focus{border-color:var(--accent)}.btn{width:100%;border:0;border-radius:14px;padding:14px 16px;font-weight:800;color:#041018;background:linear-gradient(135deg,var(--accent),#4df3b1);box-shadow:0 12px 28px #16d98a22}.btn.secondary{background:var(--card2);color:var(--text);border:1px solid var(--line);box-shadow:none}.btn.blue{background:linear-gradient(135deg,var(--accent2),#69caff)}.btn.danger{background:#3a151b;color:#ff9aa0;border:1px solid #71313a;box-shadow:none}.btnrow{display:grid;grid-template-columns:1fr 1fr;gap:9px}.big-action{margin-top:13px}.section-title{display:flex;align-items:center;justify-content:space-between;margin:20px 2px 10px}.section-title h3{font-size:14px;margin:0}.section-title span{font-size:11px;color:var(--muted)}.fuel{border:1px solid var(--line);border-radius:15px;padding:13px;margin:9px 0;background:#0a1828}.fuel-head{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px}.fuel-dot{width:10px;height:10px;border-radius:50%}.pump{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}.pump strong{grid-column:1/-1;font-size:12px}.price{font-size:11px;color:var(--muted);margin-left:auto}.paygrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.pay{border:1px solid var(--line);background:#0a1828;border-radius:14px;padding:13px;text-align:left}.pay.active{border-color:var(--accent);background:#0d2b29}.pay b{display:block;font-size:13px}.pay small{color:var(--muted)}.list{display:grid;gap:8px}.item{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:13px;padding:10px;background:#0a1828}.item .ico{width:34px;height:34px;border-radius:10px;background:var(--card2);display:grid;place-items:center}.item .info{flex:1}.item .t{font-size:12px;font-weight:800}.item .s{font-size:10px;color:var(--muted);margin-top:2px}.item .amt{font-weight:900;font-size:13px}.mini{border:0;background:none;color:var(--muted);padding:6px}.summary{display:grid;gap:0}.row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}.row:last-child{border-bottom:0}.row span:last-child{font-weight:800;text-align:right}.total{font-size:14px;font-weight:900}.situation{text-align:center;border-radius:18px;padding:22px;margin:12px 0;border:1px solid var(--line);background:#0b1928}.situation.ok{border-color:#1c7658;background:#0b2b22}.situation.bad{border-color:#7d3238;background:#30151a}.situation .tag{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}.situation .amount{font-size:35px;font-weight:950;margin:8px 0}.situation .hint{font-size:11px;color:var(--muted)}.tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:20;width:min(720px,100%);display:grid;grid-template-columns:1fr 1fr;background:#07111ff5;backdrop-filter:blur(18px);border-top:1px solid var(--line);padding:9px 15px calc(9px + env(safe-area-inset-bottom))}.tab{border:0;background:none;color:var(--muted);padding:8px;font-size:11px}.tab.active{color:var(--accent);font-weight:900}.auth{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 50% 0,#123b52,#06101d 55%)}.authbox{width:min(440px,100%);background:#0b1929;border:1px solid var(--line);border-radius:26px;padding:22px;box-shadow:var(--shadow)}.authlogo{margin:auto auto 15px;width:62px;height:62px;border-radius:19px;display:grid;place-items:center;font-size:30px;background:linear-gradient(135deg,var(--accent),var(--accent2))}.auth h2{margin:0;text-align:center;font-size:25px}.auth p{text-align:center;color:var(--muted);font-size:12px;line-height:1.5}.auth .field{margin-top:11px}.link{border:0;background:none;color:var(--accent);font-weight:800;font-size:12px}.notice{font-size:11px;padding:10px;border-radius:11px;background:#351a1e;color:#ffb0b4;margin:10px 0}.success{font-size:12px;color:var(--accent);margin-top:10px}.empty{text-align:center;color:var(--muted);padding:18px;font-size:12px}.history-item{display:flex;align-items:center;gap:12px;padding:13px;border:1px solid var(--line);border-radius:14px;margin-bottom:8px;background:#0a1828}.history-item .date{flex:1;font-size:12px;font-weight:800}.history-item small{display:block;color:var(--muted);font-weight:500;margin-top:3px}.badge{font-size:11px;font-weight:900}.good{color:var(--accent)}.bad{color:var(--danger)}@media(min-width:600px){main{padding:25px}.grid{grid-template-columns:repeat(4,1fr)}.paygrid{grid-template-columns:repeat(5,1fr)}}
-</style></head>
+:root{
+  --bg:#07111f;
+  --card:#0d1b2d;
+  --card2:#12243a;
+  --line:#20364e;
+  --text:#f5f8fc;
+  --muted:#8fa3b8;
+  --accent:#16d98a;
+  --accent2:#19a7ff;
+  --danger:#ff5d67;
+  --warn:#ffbd45;
+  --super:#ff3b30;
+  --gazole:#1597ff;
+  --petrole:#9b7cff;
+  --shadow:0 18px 50px #0005;
+}
+
+*{
+  box-sizing:border-box;
+}
+
+body{
+  margin:0;
+  background:linear-gradient(180deg,#06101d,#09182a);
+  color:var(--text);
+  font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;
+}
+
+button,
+input,
+select{
+  font:inherit;
+}
+
+button{
+  cursor:pointer;
+}
+
+.hidden{
+  display:none!important;
+}
+
+.app,
+#supervisorRoot,
+#boutiqueRoot{
+  min-height:100vh;
+  max-width:720px;
+  margin:auto;
+  padding-bottom:95px;
+}
+
+.top{
+  position:sticky;
+  top:0;
+  z-index:10;
+  padding:16px;
+  background:#07111fee;
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--line);
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.logo{
+  width:44px;
+  height:44px;
+  border-radius:13px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:grid;
+  place-items:center;
+  font-size:23px;
+  box-shadow:0 8px 25px #16d98a33;
+}
+
+.brand h1{
+  font-size:17px;
+  margin:0;
+}
+
+.brand p{
+  font-size:11px;
+  color:var(--muted);
+  margin:3px 0 0;
+}
+
+.chip{
+  margin-left:auto;
+  border:1px solid var(--line);
+  background:var(--card);
+  border-radius:999px;
+  padding:8px 11px;
+  font-size:11px;
+  color:var(--muted);
+}
+
+main{
+  padding:18px 15px;
+}
+
+.hero{
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:20px;
+  background:radial-gradient(
+    circle at 100% 0,
+    #12395b,
+    #0d1b2d 48%
+  );
+  box-shadow:var(--shadow);
+  margin-bottom:15px;
+}
+
+.hero .kicker{
+  font-size:11px;
+  color:var(--accent);
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+.hero h2{
+  font-size:28px;
+  line-height:1.05;
+  margin:9px 0;
+}
+
+.hero p{
+  color:var(--muted);
+  font-size:13px;
+  margin:0;
+  line-height:1.5;
+}
+
+.status{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:16px;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.dot,
+.status-dot{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  display:inline-block;
+  background:var(--warn);
+}
+
+.dot.open,
+.status-dot.open{
+  background:var(--accent);
+}
+
+.dot.closed,
+.status-dot.closed{
+  background:var(--accent2);
+}
+
+.status-dot.none{
+  background:var(--warn);
+}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:15px;
+  margin-bottom:13px;
+}
+
+.card h3{
+  margin:0 0 12px;
+  font-size:14px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.field label,
+.field-label{
+  display:block;
+  font-size:10px;
+  color:var(--muted);
+  margin:0 0 6px;
+}
+
+.field input,
+.field select,
+.input,
+.note-input,
+.led-input{
+  width:100%;
+  border:1px solid var(--line);
+  background:#091727;
+  color:var(--text);
+  border-radius:12px;
+  padding:12px;
+  outline:none;
+}
+
+.field input:focus,
+.field select:focus,
+.note-input:focus,
+.led-input:focus{
+  border-color:var(--accent);
+}
+
+.btn{
+  width:100%;
+  border:0;
+  border-radius:14px;
+  padding:14px 16px;
+  font-weight:800;
+  color:#041018;
+  background:linear-gradient(
+    135deg,
+    var(--accent),
+    #4df3b1
+  );
+  box-shadow:0 12px 28px #16d98a22;
+}
+
+.btn.secondary{
+  background:var(--card2);
+  color:var(--text);
+  border:1px solid var(--line);
+  box-shadow:none;
+}
+
+.btn.blue{
+  background:linear-gradient(
+    135deg,
+    var(--accent2),
+    #69caff
+  );
+}
+
+.btn.danger{
+  background:#3a151b;
+  color:#ff9aa0;
+  border:1px solid #71313a;
+  box-shadow:none;
+}
+
+.btn.amber{
+  background:linear-gradient(
+    135deg,
+    #ffbd45,
+    #ffd778
+  );
+}
+
+.btnrow{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+}
+
+.big-action{
+  margin-top:13px;
+}
+
+.section-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin:20px 2px 10px;
+}
+
+.section-title h3{
+  font-size:14px;
+  margin:0;
+}
+
+.section-title span{
+  font-size:11px;
+  color:var(--muted);
+}
+
+.fuel{
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:13px;
+  margin:9px 0;
+  background:#0a1828;
+}
+
+.fuel-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:800;
+  font-size:13px;
+}
+
+.fuel-dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+}
+
+.pump{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+  margin-top:11px;
+}
+
+.pump strong{
+  grid-column:1/-1;
+  font-size:12px;
+}
+
+.price{
+  font-size:11px;
+  color:var(--muted);
+  margin-left:auto;
+}
+
+.paygrid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:9px;
+}
+
+.pay{
+  border:1px solid var(--line);
+  background:#0a1828;
+  border-radius:14px;
+  padding:13px;
+  text-align:left;
+}
+
+.pay.active{
+  border-color:var(--accent);
+  background:#0d2b29;
+}
+
+.pay b{
+  display:block;
+  font-size:13px;
+}
+
+.pay small{
+  color:var(--muted);
+}
+
+.list{
+  display:grid;
+  gap:8px;
+}
+
+.item,
+.list-item,
+.hist-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  padding:10px;
+  background:#0a1828;
+}
+
+.item .ico,
+.list-item .ic{
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  background:var(--card2);
+  display:grid;
+  place-items:center;
+}
+
+.item .info,
+.list-item .info{
+  flex:1;
+}
+
+.item .t,
+.list-item .t{
+  font-size:12px;
+  font-weight:800;
+}
+
+.item .s,
+.list-item .s{
+  font-size:10px;
+  color:var(--muted);
+  margin-top:2px;
+}
+
+.item .amt,
+.list-item .amt{
+  font-weight:900;
+  font-size:13px;
+}
+
+.del{
+  border:0;
+  background:none;
+  color:var(--danger);
+  padding:7px;
+}
+
+.mini{
+  border:0;
+  background:none;
+  color:var(--muted);
+  padding:6px;
+}
+
+.summary{
+  display:grid;
+  gap:0;
+}
+
+.row,
+.summary-line{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 0;
+  border-bottom:1px solid var(--line);
+  font-size:12px;
+}
+
+.row:last-child,
+.summary-line:last-child{
+  border-bottom:0;
+}
+
+.row span:last-child,
+.summary-line .v{
+  font-weight:800;
+  text-align:right;
+}
+
+.summary-line.total,
+.row.total{
+  font-size:14px;
+  font-weight:900;
+}
+
+.situation,
+.situation-box{
+  text-align:center;
+  border-radius:18px;
+  padding:22px;
+  margin:12px 0;
+  border:1px solid var(--line);
+  background:#0b1928;
+}
+
+.situation.ok,
+.situation-box.ok{
+  border-color:#1c7658;
+  background:#0b2b22;
+}
+
+.situation.bad,
+.situation-box.bad{
+  border-color:#7d3238;
+  background:#30151a;
+}
+
+.situation .tag,
+.situation-box .tag{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  color:var(--muted);
+}
+
+.situation .amount,
+.situation-box .amount{
+  font-size:35px;
+  font-weight:950;
+  margin:8px 0;
+}
+
+.situation .hint,
+.situation-box .hint{
+  font-size:11px;
+  color:var(--muted);
+}
+
+.tabs{
+  position:fixed;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:20;
+  width:min(720px,100%);
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  background:#07111ff5;
+  backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);
+  padding:9px 15px calc(9px + env(safe-area-inset-bottom));
+}
+
+.tab{
+  border:0;
+  background:none;
+  color:var(--muted);
+  padding:8px;
+  font-size:11px;
+}
+
+.tab.active{
+  color:var(--accent);
+  font-weight:900;
+}
+
+.auth{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:20px;
+  background:radial-gradient(
+    circle at 50% 0,
+    #123b52,
+    #06101d 55%
+  );
+}
+
+.authbox{
+  width:min(440px,100%);
+  background:#0b1929;
+  border:1px solid var(--line);
+  border-radius:26px;
+  padding:22px;
+  box-shadow:var(--shadow);
+}
+
+.authlogo{
+  margin:auto auto 15px;
+  width:62px;
+  height:62px;
+  border-radius:19px;
+  display:grid;
+  place-items:center;
+  font-size:30px;
+  background:linear-gradient(
+    135deg,
+    var(--accent),
+    var(--accent2)
+  );
+}
+
+.auth h2{
+  margin:0;
+  text-align:center;
+  font-size:25px;
+}
+
+.auth p{
+  text-align:center;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+
+.auth .field{
+  margin-top:11px;
+}
+
+.link{
+  border:0;
+  background:none;
+  color:var(--accent);
+  font-weight:800;
+  font-size:12px;
+}
+
+.notice{
+  font-size:11px;
+  padding:10px;
+  border-radius:11px;
+  background:#351a1e;
+  color:#ffb0b4;
+  margin:10px 0;
+}
+
+.success{
+  font-size:12px;
+  color:var(--accent);
+  margin-top:10px;
+}
+
+.empty{
+  text-align:center;
+  color:var(--muted);
+  padding:18px;
+  font-size:12px;
+}
+
+.history-item{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:13px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  margin-bottom:8px;
+  background:#0a1828;
+}
+
+.history-item .date{
+  flex:1;
+  font-size:12px;
+  font-weight:800;
+}
+
+.history-item small{
+  display:block;
+  color:var(--muted);
+  font-weight:500;
+  margin-top:3px;
+}
+
+.badge,
+.he{
+  font-size:11px;
+  font-weight:900;
+}
+
+.good{
+  color:var(--accent);
+}
+
+.bad{
+  color:var(--danger);
+}
+
+.he.good{
+  color:var(--accent);
+}
+
+.he.bad{
+  color:var(--danger);
+}
+
+.vtype-btn{
+  border:1px solid var(--line);
+  background:#0a1828;
+  border-radius:14px;
+  padding:12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.vtype-btn.active{
+  border-color:var(--accent);
+  background:#0d2b29;
+}
+
+.vtype-btn .ic{
+  font-size:18px;
+}
+
+.vtype-btn .lb{
+  font-size:12px;
+  font-weight:800;
+}
+
+#bouOpGrid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+}
+
+#supPompisteList,
+#supHistoryList,
+#bouProdList,
+#bouOpList,
+#bouHistList{
+  display:grid;
+  gap:8px;
+}
+
+#supervisorRoot .view,
+#boutiqueRoot .view{
+  display:none;
+}
+
+#supervisorRoot .view.active,
+#boutiqueRoot .view.active{
+  display:block;
+}
+
+.sup-header,
+.bou-header{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:16px;
+  border-bottom:1px solid var(--line);
+  background:#07111fee;
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+
+.sup-header .title,
+.bou-header .title{
+  flex:1;
+}
+
+.sup-header h2,
+.bou-header h2{
+  margin:0;
+  font-size:17px;
+}
+
+.sup-header p,
+.bou-header p{
+  margin:3px 0 0;
+  color:var(--muted);
+  font-size:11px;
+}
+
+.icon-btn{
+  border:1px solid var(--line);
+  background:var(--card);
+  color:var(--text);
+  width:38px;
+  height:38px;
+  border-radius:12px;
+}
+
+.back-link{
+  border:0;
+  background:none;
+  color:var(--accent);
+  padding:8px 0;
+  font-size:12px;
+  font-weight:800;
+}
+
+.stock-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+}
+
+@media(min-width:600px){
+  main{
+    padding:25px;
+  }
+
+  .grid{
+    grid-template-columns:repeat(4,1fr);
+  }
+
+  .paygrid{
+    grid-template-columns:repeat(5,1fr);
+  }
+}
+
+@media(max-width:430px){
+  #bouOpGrid{
+    grid-template-columns:1fr 1fr 1fr;
+  }
+}
+</style>
+</head>
+
 <body>
-<div id="authScreen" class="auth"><div class="authbox"><div class="authlogo">⛽</div><h2 id="authTitle">Bienvenue 👋</h2><p id="authSub">Connectez-vous pour accéder à votre service</p><div id="authError" class="notice hidden"></div><div id="nameWrap" class="field hidden"><label>Nom complet</label><input id="authName" placeholder="Votre nom"></div><div class="field"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="vous@email.com"></div><div class="field"><label>Mot de passe</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="••••••••"></div><button id="authBtn" class="btn big-action" onclick="authSubmit()">Se connecter</button><p style="margin-top:15px"><span id="switchText">Pas encore de compte ?</span> <button class="link" onclick="toggleAuth()" id="switchLink">Créer un compte</button></p></div></div>
-<div id="app" class="app hidden"><header class="top"><div class="brand"><div class="logo">⛽</div><div><h1>Ma Station</h1><p>Suivi de service · Mobile Pro</p></div><div id="userChip" class="chip">Compte</div></div></header><main>
-<section class="hero"><div class="kicker">SMART ACCESS STATION</div><h2 id="heroTitle">Prenez votre poste en toute simplicité.</h2><p id="heroSub">Station · Îlot · Pompe · Quart — tout votre service au même endroit.</p><div class="status"><i id="statusDot" class="dot"></i><span id="statusText">Poste non ouvert</span></div></section>
-<div id="viewOuverture">
-<div class="section-title"><h3>👤 Accès pompiste</h3><span>Étape 1 / 3</span></div><div class="card"><h3>Votre poste</h3><div class="grid"><div class="field" style="grid-column:1/-1"><label>Station</label><input id="station" placeholder="Nom de la station"></div><div class="field"><label>Pompiste</label><input id="pompiste" placeholder="Nom complet"></div><div class="field"><label>Quart</label><select id="quart"><option>Matin</option><option>Après-midi</option><option>Nuit</option></select></div><div class="field"><label>Îlot</label><input id="ilot" placeholder="Ex. 1"></div><div class="field"><label>Poste / Pompe</label><input id="poste" placeholder="Ex. 2"></div></div><button class="btn big-action" onclick="openShift()">▶ PRENDRE MON POSTE</button></div>
-<div class="card"><h3>🧾 Instructions du jour</h3><div class="row"><span>✓ Vérifier les index d'ouverture</span><span>01</span></div><div class="row"><span>✓ Contrôler caisse et moyens de paiement</span><span>02</span></div><div class="row"><span>✓ Signaler toute anomalie</span><span>03</span></div></div>
+
+<!-- ============================================================
+     AUTHENTIFICATION
+============================================================ -->
+
+<div id="authScreen" class="auth">
+
+  <div class="authbox">
+
+    <div class="authlogo">⛽</div>
+
+    <h2 id="authTitle">
+      Bienvenue 👋
+    </h2>
+
+    <p id="authSub">
+      Connectez-vous pour accéder à votre service
+    </p>
+
+    <div id="authError" class="notice hidden"></div>
+
+    <div id="nameWrap" class="field hidden">
+      <label>Nom complet</label>
+      <input
+        id="authName"
+        placeholder="Votre nom"
+      >
+    </div>
+
+    <div class="field">
+      <label>Email</label>
+      <input
+        id="authEmail"
+        type="email"
+        autocomplete="email"
+        placeholder="vous@email.com"
+      >
+    </div>
+
+    <div class="field">
+      <label>Mot de passe</label>
+      <input
+        id="authPassword"
+        type="password"
+        autocomplete="current-password"
+        placeholder="••••••••"
+      >
+    </div>
+
+    <button
+      id="authBtn"
+      class="btn big-action"
+      onclick="authSubmit()"
+    >
+      Se connecter
+    </button>
+
+    <p style="margin-top:15px">
+
+      <span id="switchText">
+        Pas encore de compte ?
+      </span>
+
+      <button
+        class="link"
+        onclick="toggleAuth()"
+        id="switchLink"
+      >
+        Créer un compte
+      </button>
+
+    </p>
+
+  </div>
+
 </div>
-<div id="viewService" class="hidden"><div class="section-title"><h3>⛽ Service en cours</h3><span>Étape 2 / 3</span></div><div class="card"><h3>Index d'ouverture / suivi des pompes</h3><div id="pumps"></div></div><div class="card"><h3>💳 Effectuer un versement</h3><div id="paygrid" class="paygrid"></div><div class="field" style="margin-top:10px"><label>Montant (FCFA)</label><input id="amount" inputmode="decimal" placeholder="0"></div><div class="field" style="margin-top:10px"><label>Note / référence</label><input id="note" placeholder="Facultatif"></div><button class="btn big-action" onclick="addPayment()">+ ENREGISTRER LE VERSEMENT</button></div><div class="card"><div class="section-title" style="margin:0 0 10px"><h3>Versements</h3><span id="count">0</span></div><div id="payments" class="list"></div></div><div class="card"><h3>🧺 Dépense</h3><div class="grid"><div class="field"><label>Motif</label><input id="depMotif" placeholder="Ex. eau"></div><div class="field"><label>Montant</label><input id="depAmount" inputmode="decimal" placeholder="0"></div></div><button class="btn secondary big-action" onclick="addExpense()">+ ENREGISTRER LA DÉPENSE</button></div><button class="btn blue" onclick="goClosing()">CONTINUER → INDEX DE CLÔTURE</button></div>
-<div id="viewClosing" class="hidden"><div class="section-title"><h3>🔢 Clôture du poste</h3><span>Étape 3 / 3</span></div><div class="card"><h3>Index de fin</h3><div id="closingPumps"></div></div><div class="card"><h3>Validation</h3><p style="color:var(--muted);font-size:12px">Saisissez votre nom pour confirmer la clôture.</p><div class="field"><label>Signature</label><input id="signature" placeholder="Nom et prénom"></div><button class="btn big-action" onclick="closeShift()">✓ CALCULER MA SITUATION</button></div></div>
-<div id="viewSituation" class="hidden"><div class="section-title"><h3>📊 Situation de service</h3><span id="situationDate"></span></div><div class="card"><div id="situation" class="situation"></div><div id="summary" class="summary"></div></div><div class="btnrow"><button class="btn secondary" onclick="backService()">← Modifier</button><button class="btn" onclick="shareWhatsApp()">Partager WhatsApp</button></div><button class="btn danger big-action" onclick="signOut()">Terminer le poste / Déconnexion</button></div>
-<div id="viewHistory" class="hidden"><div class="section-title"><h3>🗂 Historique</h3><span>Vos journées</span></div><div id="history"></div></div>
-</main><nav class="tabs"><button class="tab active" onclick="tab('service')">⛽<br>Service</button><button class="tab" onclick="tab('history')">📅<br>Historique</button></nav></div>
+
+
+<!-- ============================================================
+     ESPACE POMPISTE
+============================================================ -->
+
+<div id="app" class="app hidden">
+
+  <header class="top">
+
+    <div class="brand">
+
+      <div class="logo">⛽</div>
+
+      <div>
+        <h1>Ma Station</h1>
+        <p>Suivi de service · Mobile Pro</p>
+      </div>
+
+      <div id="userChip" class="chip">
+        Compte
+      </div>
+
+    </div>
+
+  </header>
+
+  <main>
+
+    <section class="hero">
+
+      <div class="kicker">
+        SMART ACCESS STATION
+      </div>
+
+      <h2 id="heroTitle">
+        Prenez votre poste en toute simplicité.
+      </h2>
+
+      <p id="heroSub">
+        Station · Îlot · Pompe · Quart —
+        tout votre service au même endroit.
+      </p>
+
+      <div class="status">
+
+        <i id="statusDot" class="dot"></i>
+
+        <span id="statusText">
+          Poste non ouvert
+        </span>
+
+      </div>
+
+    </section>
+
+
+    <!-- OUVERTURE POMPISTE -->
+
+    <div id="viewOuverture">
+
+      <div class="section-title">
+        <h3>👤 Accès pompiste</h3>
+        <span>Étape 1 / 3</span>
+      </div>
+
+      <div class="card">
+
+        <h3>Votre poste</h3>
+
+        <div class="grid">
+
+          <div
+            class="field"
+            style="grid-column:1/-1"
+          >
+            <label>Station</label>
+
+            <input
+              id="station"
+              placeholder="Nom de la station"
+            >
+          </div>
+
+          <div class="field">
+            <label>Pompiste</label>
+
+            <input
+              id="pompiste"
+              placeholder="Nom complet"
+            >
+          </div>
+
+          <div class="field">
+
+            <label>Quart</label>
+
+            <select id="quart">
+
+              <option>Matin</option>
+              <option>Après-midi</option>
+              <option>Nuit</option>
+
+            </select>
+
+          </div>
+
+          <div class="field">
+
+            <label>Îlot</label>
+
+            <input
+              id="ilot"
+              placeholder="Ex. 1"
+            >
+
+          </div>
+
+          <div class="field">
+
+            <label>Poste / Pompe</label>
+
+            <input
+              id="poste"
+              placeholder="Ex. 2"
+            >
+
+          </div>
+
+        </div>
+
+        <button
+          class="btn big-action"
+          onclick="openShift()"
+        >
+          ▶ PRENDRE MON POSTE
+        </button>
+
+      </div>
+
+
+      <div class="card">
+
+        <h3>🧾 Instructions du jour</h3>
+
+        <div class="row">
+          <span>✓ Vérifier les index d'ouverture</span>
+          <span>01</span>
+        </div>
+
+        <div class="row">
+          <span>✓ Contrôler caisse et moyens de paiement</span>
+          <span>02</span>
+        </div>
+
+        <div class="row">
+          <span>✓ Signaler toute anomalie</span>
+          <span>03</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- SERVICE POMPISTE -->
+
+    <div id="viewService" class="hidden">
+
+      <div class="section-title">
+        <h3>⛽ Service en cours</h3>
+        <span>Étape 2 / 3</span>
+      </div>
+
+      <div class="card">
+
+        <h3>
+          Index d'ouverture / suivi des pompes
+        </h3>
+
+        <div id="pumps"></div>
+
+      </div>
+
+
+      <div class="card">
+
+        <h3>💳 Effectuer un versement</h3>
+
+        <div
+          id="paygrid"
+          class="paygrid"
+        ></div>
+
+        <div
+          class="field"
+          style="margin-top:10px"
+        >
+
+          <label>Montant (FCFA)</label>
+
+          <input
+            id="amount"
+            inputmode="decimal"
+            placeholder="0"
+          >
+
+        </div>
+
+        <div
+          class="field"
+          style="margin-top:10px"
+        >
+
+          <label>Note / référence</label>
+
+          <input
+            id="note"
+            placeholder="Facultatif"
+          >
+
+        </div>
+
+        <button
+          class="btn big-action"
+          onclick="addPayment()"
+        >
+          + ENREGISTRER LE VERSEMENT
+        </button>
+
+      </div>
+
+
+      <div class="card">
+
+        <div
+          class="section-title"
+          style="margin:0 0 10px"
+        >
+
+          <h3>Versements</h3>
+
+          <span id="count">
+            0
+          </span>
+
+        </div>
+
+        <div
+          id="payments"
+          class="list"
+        ></div>
+
+      </div>
+
+
+      <div class="card">
+
+        <h3>🧺 Dépense</h3>
+
+        <div class="grid">
+
+          <div class="field">
+
+            <label>Motif</label>
+
+            <input
+              id="depMotif"
+              placeholder="Ex. eau"
+            >
+
+          </div>
+
+          <div class="field">
+
+            <label>Montant</label>
+
+            <input
+              id="depAmount"
+              inputmode="decimal"
+              placeholder="0"
+            >
+
+          </div>
+
+        </div>
+
+        <button
+          class="btn secondary big-action"
+          onclick="addExpense()"
+        >
+          + ENREGISTRER LA DÉPENSE
+        </button>
+
+      </div>
+
+
+      <button
+        class="btn blue"
+        onclick="goClosing()"
+      >
+        CONTINUER → INDEX DE CLÔTURE
+      </button>
+
+    </div>
+
+
+    <!-- CLÔTURE POMPISTE -->
+
+    <div id="viewClosing" class="hidden">
+
+      <div class="section-title">
+
+        <h3>🔢 Clôture du poste</h3>
+
+        <span>Étape 3 / 3</span>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Index de fin</h3>
+
+        <div id="closingPumps"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Validation</h3>
+
+        <p style="color:var(--muted);font-size:12px">
+          Saisissez votre nom pour confirmer la clôture.
+        </p>
+
+        <div class="field">
+
+          <label>Signature</label>
+
+          <input
+            id="signature"
+            placeholder="Nom et prénom"
+          >
+
+        </div>
+
+        <button
+          class="btn big-action"
+          onclick="closeShift()"
+        >
+          ✓ CALCULER MA SITUATION
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- SITUATION POMPISTE -->
+
+    <div id="viewSituation" class="hidden">
+
+      <div class="section-title">
+
+        <h3>📊 Situation de service</h3>
+
+        <span id="situationDate"></span>
+
+      </div>
+
+      <div class="card">
+
+        <div
+          id="situation"
+          class="situation"
+        ></div>
+
+        <div
+          id="summary"
+          class="summary"
+        ></div>
+
+      </div>
+
+      <div class="btnrow">
+
+        <button
+          class="btn secondary"
+          onclick="backService()"
+        >
+          ← Modifier
+        </button>
+
+        <button
+          class="btn"
+          onclick="shareWhatsApp()"
+        >
+          Partager WhatsApp
+        </button>
+
+      </div>
+
+      <button
+        class="btn danger big-action"
+        onclick="signOut()"
+      >
+        Terminer le poste / Déconnexion
+      </button>
+
+    </div>
+
+
+    <!-- HISTORIQUE POMPISTE -->
+
+    <div id="viewHistory" class="hidden">
+
+      <div class="section-title">
+
+        <h3>🗂 Historique</h3>
+
+        <span>Vos journées</span>
+
+      </div>
+
+      <div id="history"></div>
+
+    </div>
+
+  </main>
+
+
+  <nav class="tabs">
+
+    <button
+      class="tab active"
+      onclick="tab('service')"
+    >
+      ⛽<br>
+      Service
+    </button>
+
+    <button
+      class="tab"
+      onclick="tab('history')"
+    >
+      📅<br>
+      Historique
+    </button>
+
+  </nav>
+
+</div>
+
+
+<!-- ============================================================
+     ESPACE SUPERVISEUR
+============================================================ -->
+
+<div
+  id="supervisorRoot"
+  class="hidden"
+>
+
+  <header class="sup-header">
+
+    <button
+      class="icon-btn"
+      onclick="returnToMainApp()"
+    >
+      ←
+    </button>
+
+    <div class="title">
+
+      <h2 id="supStationName">
+        Ma Station
+      </h2>
+
+      <p id="supStationLine">
+        Superviseur
+      </p>
+
+    </div>
+
+    <span
+      class="status-dot open"
+    ></span>
+
+  </header>
+
+
+  <main>
+
+    <!-- CONFIGURATION STATION -->
+
+    <section
+      id="view-sup-station-setup"
+      class="view"
+    >
+
+      <div class="section-title">
+
+        <h3>🏢 Configuration</h3>
+
+        <span>Superviseur</span>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Votre station</h3>
+
+        <p style="color:var(--muted);font-size:12px">
+          Indiquez la station que vous supervisez.
+        </p>
+
+        <div class="field">
+
+          <label>Nom de la station</label>
+
+          <input
+            id="supStationInput"
+            placeholder="Ex. Ma Station Bafia"
+          >
+
+        </div>
+
+        <button
+          class="btn big-action"
+          onclick="saveSupervisorStation()"
+        >
+          ✓ ENREGISTRER LA STATION
+        </button>
+
+        <div
+          id="supSetupMsg"
+          class="success"
+        ></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- LISTE DES POMPISTES -->
+
+    <section
+      id="view-sup-list"
+      class="view active"
+    >
+
+      <div class="section-title">
+
+        <h3>👥 Pompistes</h3>
+
+        <span>Aujourd'hui</span>
+
+      </div>
+
+      <div class="card">
+
+        <div id="supPompisteList">
+          <div class="empty">
+            Chargement…
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- DÉTAIL POMPISTE -->
+
+    <section
+      id="view-sup-detail"
+      class="view"
+    >
+
+      <button
+        id="supDetailBackLink"
+        class="back-link"
+        onclick="showSupStage('list')"
+      >
+        ← Retour
+      </button>
+
+      <div class="section-title">
+
+        <h3>📊 Détail du service</h3>
+
+        <span>Supervision</span>
+
+      </div>
+
+      <div
+        id="supDetailInfoBox"
+        class="card"
+      ></div>
+
+      <div
+        id="supDetailBox"
+      ></div>
+
+      <div class="card">
+
+        <h3>⛽ Carburants</h3>
+
+        <div id="supDetailFuels"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>🔥 Gaz</h3>
+
+        <div id="supDetailGaz"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>💳 Moyens de paiement</h3>
+
+        <div id="supDetailPay"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>💰 Versements</h3>
+
+        <div id="supDetailVersementsList"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>🧾 Dépenses</h3>
+
+        <div id="supDetailDepenses"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>📌 Résultat final</h3>
+
+        <div id="supDetailFinal"></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- HISTORIQUE SUPERVISEUR -->
+
+    <section
+      id="view-sup-history"
+      class="view"
+    >
+
+      <button
+        class="back-link"
+        onclick="showSupStage('list')"
+      >
+        ← Retour à la liste
+      </button>
+
+      <div class="section-title">
+
+        <h3 id="supHistoryTitle">
+          Historique
+        </h3>
+
+        <span>90 jours</span>
+
+      </div>
+
+      <div class="card">
+
+        <div id="supHistoryList"></div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+
+<!-- ============================================================
+     ESPACE BOUTIQUE
+============================================================ -->
+
+<div
+  id="boutiqueRoot"
+  class="hidden"
+>
+
+  <header class="bou-header">
+
+    <button
+      class="icon-btn"
+      onclick="returnToMainApp()"
+    >
+      ←
+    </button>
+
+    <div class="title">
+
+      <h2>
+        🛒 Boutique
+      </h2>
+
+      <p id="bouStatusText">
+        Boutique non ouverte
+      </p>
+
+    </div>
+
+    <span
+      id="bouStatusDot"
+      class="status-dot none"
+    ></span>
+
+  </header>
+
+
+  <main>
+
+    <!-- NAVIGATION BOUTIQUE -->
+
+    <div
+      class="tabs"
+      style="
+        position:static;
+        transform:none;
+        width:100%;
+        margin-bottom:15px;
+        border:1px solid var(--line);
+        border-radius:15px;
+      "
+    >
+
+      <button
+        class="tab active"
+        data-bou-tab="service"
+        onclick="switchBouTab('service')"
+      >
+        🛒<br>
+        Service
+      </button>
+
+      <button
+        class="tab"
+        data-bou-tab="catalogue"
+        onclick="switchBouTab('catalogue')"
+      >
+        📦<br>
+        Catalogue
+      </button>
+
+      <button
+        class="tab"
+        data-bou-tab="historique"
+        onclick="switchBouTab('historique')"
+      >
+        📅<br>
+        Historique
+      </button>
+
+    </div>
+
+
+    <!-- OUVERTURE BOUTIQUE -->
+
+    <section
+      id="view-bou-ouverture"
+      class="view"
+    >
+
+      <div class="section-title">
+
+        <h3>🏪 Ouverture boutique</h3>
+
+        <span>Étape 1</span>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Informations</h3>
+
+        <div class="field">
+
+          <label>Station</label>
+
+          <select id="bouInfoStation">
+            <option value="">
+              — Choisir une station —
+            </option>
+          </select>
+
+        </div>
+
+        <div
+          class="field"
+          style="margin-top:10px"
+        >
+
+          <input
+            id="bouInfoStationNew"
+            class="hidden"
+            placeholder="Nom de la nouvelle station"
+          >
+
+        </div>
+
+        <div
+          class="field"
+          style="margin-top:10px"
+        >
+
+          <label>Hôtesse / Responsable</label>
+
+          <input
+            id="bouInfoHotesse"
+            placeholder="Nom complet"
+          >
+
+        </div>
+
+        <div
+          class="field"
+          style="margin-top:10px"
+        >
+
+          <label>Fonds de caisse départ</label>
+
+          <input
+            id="bouFondsCaisse"
+            inputmode="decimal"
+            placeholder="0"
+          >
+
+        </div>
+
+        <button
+          class="btn big-action"
+          onclick="openBoutiqueShift()"
+        >
+          ▶ OUVRIR LA BOUTIQUE
+        </button>
+
+        <div
+          id="bouOuvStatusMsg"
+          class="success"
+        ></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- SERVICE BOUTIQUE -->
+
+    <section
+      id="view-bou-service"
+      class="view"
+    >
+
+      <div class="section-title">
+
+        <h3>🛒 Service boutique</h3>
+
+        <span id="bouOpCount"></span>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Type d'opération</h3>
+
+        <div id="bouOpGrid"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Nouvelle opération</h3>
+
+        <div id="bouOpFields"></div>
+
+        <div
+          class="field"
+          style="margin-top:10px"
+        >
+
+          <label>Note / référence</label>
+
+          <input
+            id="bouOpNote"
+            class="note-input"
+            placeholder="Facultatif"
+          >
+
+        </div>
+
+        <button
+          id="bouAddOpBtn"
+          class="btn big-action"
+          onclick="addBoutiqueOp()"
+        >
+          + Ajouter cette opération
+        </button>
+
+        <button
+          id="bouCancelOpEditBtn"
+          class="btn secondary big-action hidden"
+          onclick="cancelEditBouOp()"
+        >
+          Annuler la modification
+        </button>
+
+      </div>
+
+      <div class="card">
+
+        <h3>📋 Opérations du jour</h3>
+
+        <div id="bouOpList"></div>
+
+      </div>
+
+      <button
+        class="btn blue"
+        onclick="goToBoutiqueClosing()"
+      >
+        CONTINUER → CLÔTURE
+      </button>
+
+    </section>
+
+
+    <!-- CATALOGUE -->
+
+    <section
+      id="view-bou-catalogue"
+      class="view"
+    >
+
+      <div class="section-title">
+
+        <h3>📦 Catalogue produits</h3>
+
+        <span id="bouProdCount"></span>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Ajouter un produit</h3>
+
+        <div class="field">
+
+          <label>Nom du produit</label>
+
+          <input
+            id="bouProdName"
+            placeholder="Ex. Eau minérale"
+          >
+
+        </div>
+
+        <div
+          class="field"
+          style="margin-top:10px"
+        >
+
+          <label>Prix unitaire (FCFA)</label>
+
+          <input
+            id="bouProdPrice"
+            inputmode="decimal"
+            placeholder="500"
+          >
+
+        </div>
+
+        <button
+          id="bouAddProdBtn"
+          class="btn big-action"
+          onclick="addBoutiqueProduct()"
+        >
+          + Ajouter au catalogue
+        </button>
+
+        <button
+          id="bouCancelProdEditBtn"
+          class="btn secondary big-action hidden"
+          onclick="cancelEditBoutiqueProduct()"
+        >
+          Annuler la modification
+        </button>
+
+      </div>
+
+      <div class="card">
+
+        <div id="bouProdList"></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- CLÔTURE BOUTIQUE -->
+
+    <section
+      id="view-bou-cloture"
+      class="view"
+    >
+
+      <div class="section-title">
+
+        <h3>🔐 Clôture boutique</h3>
+
+        <span>Validation</span>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Montant compté</h3>
+
+        <p style="color:var(--muted);font-size:12px">
+          Comptez la caisse réelle puis indiquez le montant.
+        </p>
+
+        <div class="field">
+
+          <label>Montant compté (FCFA)</label>
+
+          <input
+            id="bouMontantCompte"
+            inputmode="decimal"
+            placeholder="0"
+          >
+
+        </div>
+
+        <button
+          class="btn blue big-action"
+          onclick="computeAndShowBoutiqueSituation(false)"
+        >
+          📊 CALCULER LA SITUATION
+        </button>
+
+      </div>
+
+    </section>
+
+
+    <!-- SITUATION BOUTIQUE -->
+
+    <section
+      id="view-bou-situation"
+      class="view"
+    >
+
+      <div class="section-title">
+
+        <h3>📊 Situation boutique</h3>
+
+        <span>Clôture</span>
+
+      </div>
+
+      <div
+        id="bouSituInfoBox"
+        class="card"
+      ></div>
+
+      <div
+        id="bouSituationBox"
+      ></div>
+
+      <div class="card">
+
+        <h3>Retraits</h3>
+
+        <div id="bouSumRetraits"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Dépôts</h3>
+
+        <div id="bouSumDepots"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Ventes produits</h3>
+
+        <div id="bouSumVentes"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Récapitulatif</h3>
+
+        <div id="bouSumFinal"></div>
+
+      </div>
+
+      <div
+        id="bouSignaturePanel"
+        class="card"
+      >
+
+        <h3>✍️ Signature</h3>
+
+        <p style="color:var(--muted);font-size:12px">
+          Saisissez votre nom pour confirmer la clôture.
+        </p>
+
+        <div class="field">
+
+          <input
+            id="bouSignatureInput"
+            placeholder="Nom et prénom"
+          >
+
+        </div>
+
+        <div
+          id="bouSignatureMsg"
+          class="success"
+        ></div>
+
+      </div>
+
+      <button
+        id="bouCloseShiftBtn"
+        class="btn big-action"
+        onclick="closeBoutiqueShift()"
+      >
+        ✓ CLÔTURER LA BOUTIQUE
+      </button>
+
+      <div class="btnrow">
+
+        <button
+          id="bouBackToOpBtn"
+          class="btn secondary big-action"
+          onclick="backToOpFromBoutiqueSituation()"
+        >
+          ← Modifier
+        </button>
+
+        <button
+          class="btn big-action"
+          onclick="shareBoutiqueWhatsApp()"
+        >
+          WhatsApp
+        </button>
+
+      </div>
+
+      <button
+        id="bouBackToClotureBtn"
+        class="btn secondary big-action"
+        onclick="showBouStage('cloture')"
+      >
+        ← Retour à la clôture
+      </button>
+
+      <div
+        id="bouStatusMsg"
+        class="success"
+      ></div>
+
+    </section>
+
+
+    <!-- HISTORIQUE BOUTIQUE -->
+
+    <section
+      id="view-bou-historique"
+      class="view"
+    >
+
+      <div class="section-title">
+
+        <h3>📅 Historique boutique</h3>
+
+        <span>90 jours</span>
+
+      </div>
+
+      <div class="card">
+
+        <h3 id="bouMonthTitle">
+          Récapitulatif
+        </h3>
+
+        <div id="bouMonthRecap"></div>
+
+      </div>
+
+      <div class="card">
+
+        <div id="bouHistList"></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- DÉTAIL HISTORIQUE BOUTIQUE -->
+
+    <section
+      id="view-bou-detail"
+      class="view"
+    >
+
+      <button
+        class="back-link"
+        onclick="showBouStage('historique')"
+      >
+        ← Retour à l'historique
+      </button>
+
+      <div class="section-title">
+
+        <h3>📊 Détail de la journée</h3>
+
+        <span>Boutique</span>
+
+      </div>
+
+      <div
+        id="bouDetailInfoBox"
+        class="card"
+      ></div>
+
+      <div id="bouDetailBox"></div>
+
+      <div class="card">
+
+        <h3>Retraits</h3>
+
+        <div id="bouDetailRetraits"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Dépôts</h3>
+
+        <div id="bouDetailDepots"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Ventes</h3>
+
+        <div id="bouDetailVentes"></div>
+
+      </div>
+
+      <div class="card">
+
+        <h3>Récapitulatif</h3>
+
+        <div id="bouDetailFinal"></div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+
 <script>
-const SUPABASE_URL='https://golrvqweqcudptwdzufk.supabase.co';
-const SUPABASE_ANON_KEY='sb_publishable_tmdtvlF6Mcd5vPQWiJeMdQ_eeee0-J1';
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-let user=null,authMode='signin',stage='opening',vtype='especes';
-const V=[['especes','💶','Espèces'],['orange','🟠','Orange'],['tomcard','💳','Tom Card'],['bons','🧾','Bons'],['credit','📒','Crédit']];
-let state={status:'none',openedAt:null,closedAt:null,station:'',pompiste:'',ilot:'',poste:'',quart:'Matin',signature:'',pumps:[{fuel:'super',label:'Super 1',ouv:'',ferm:''},{fuel:'gazole',label:'Gazole 1',ouv:'',ferm:''},{fuel:'petrole',label:'Pétrole 1',ouv:'',ferm:''}],prices:{super:856,gazole:844,petrole:366},payments:[],expenses:[]};
-const n=x=>Number.parseFloat(x)||0,fmt=x=>Math.round(x).toLocaleString('fr-FR'),date=()=>new Date().toISOString().slice(0,10);
-function toggleAuth(){authMode=authMode==='signin'?'signup':'signin';nameWrap.classList.toggle('hidden',authMode==='signin');authTitle.textContent=authMode==='signin'?'Bienvenue 👋':'Créez votre compte 🚀';authSub.textContent=authMode==='signin'?'Connectez-vous pour accéder à votre service':'Créez votre compte pompiste';authBtn.textContent=authMode==='signin'?'Se connecter':'Créer mon compte';switchText.textContent=authMode==='signin'?'Pas encore de compte ?':'Déjà un compte ?';switchLink.textContent=authMode==='signin'?'Créer un compte':'Se connecter';}
-async function authSubmit(){authError.classList.add('hidden');let email=authEmail.value.trim(),password=authPassword.value;if(!email||!password){return showError('Entrez votre email et votre mot de passe.')}try{if(authMode==='signup'){let r=await sb.auth.signUp({email,password,options:{data:{full_name:authName.value.trim()}}});if(r.error)throw r.error;if(!r.data.session)return showError('Compte créé. Vérifiez votre email puis connectez-vous.')}else{let r=await sb.auth.signInWithPassword({email,password});if(r.error)throw r.error}}catch(e){showError(e.message.includes('Invalid login')?'Email ou mot de passe incorrect.':e.message)}}
-function showError(x){authError.textContent=x;authError.classList.remove('hidden')}
-sb.auth.onAuthStateChange(async(_,s)=>{if(s?.user){user=s.user;authScreen.classList.add('hidden');app.classList.remove('hidden');await load()}else{user=null;app.classList.add('hidden');authScreen.classList.remove('hidden')}});
-async function load(){try{let r=await sb.from('shifts').select('data').eq('user_id',user.id).eq('shift_date',date()).maybeSingle();if(r.data?.data)state={...state,...r.data.data,pumps:r.data.data.pumps||state.pumps,payments:r.data.data.payments||[],expenses:r.data.data.expenses||[]}}catch(e){}station.value=state.station;pompiste.value=state.pompiste||user.user_metadata?.full_name||'';ilot.value=state.ilot;poste.value=state.poste;quart.value=state.quart;signature.value=state.signature;route()}
-async function save(){try{await sb.from('shifts').upsert({user_id:user.id,shift_date:date(),data:state,updated_at:new Date().toISOString()},{onConflict:'user_id,shift_date'})}catch(e){console.warn(e)}}
-function route(){statusText.textContent=state.status==='open'?'Poste ouvert depuis '+new Date(state.openedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):state.status==='closed'?'Poste clôturé':'Poste non ouvert';statusDot.className='dot '+(state.status==='open'?'open':state.status==='closed'?'closed':'');if(state.status==='none')show('opening');else if(state.status==='open')show('service');else show('situation');}
-function show(s){stage=s;['opening','service','closing','situation','history'].forEach(x=>document.getElementById('view'+x[0].toUpperCase()+x.slice(1)).classList.toggle('hidden',x!==s));if(s==='service')renderService();if(s==='closing')renderClosing();if(s==='situation')renderSituation();if(s==='history')loadHistory()}
-function tab(t){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));event.currentTarget.classList.add('active');if(t==='history')show('history');else route()}
-async function openShift(){state.station=station.value.trim();state.pompiste=pompiste.value.trim();state.ilot=ilot.value.trim();state.poste=poste.value.trim();state.quart=quart.value;if(!state.station||!state.pompiste){return alert('Renseignez au moins la station et le pompiste.')}state.status='open';state.openedAt=new Date().toISOString();await save();route()}
-function renderService(){pumps.innerHTML=state.pumps.map((p,i)=>`<div class="fuel"><div class="fuel-head"><span class="fuel-dot" style="background:${p.fuel==='super'?'var(--super)':p.fuel==='gazole'?'var(--gazole)':'var(--petrole)'}"></span>${p.label}<span class="price">${fmt(state.prices[p.fuel])} F/L</span></div><div class="pump"><div class="field"><label>Index ouverture</label><input value="${p.ouv}" inputmode="decimal" onchange="state.pumps[${i}].ouv=this.value;save()"></div><div class="field"><label>Index actuel</label><input value="${p.ferm}" inputmode="decimal" onchange="state.pumps[${i}].ferm=this.value;save()"></div></div></div>`).join('');paygrid.innerHTML=V.map(x=>`<button class="pay ${x[0]===vtype?'active':''}" onclick="vtype='${x[0]}';renderService()"><b>${x[1]} ${x[2]}</b><small>Choisir</small></button>`).join('');payments.innerHTML=state.payments.slice().reverse().map((p,i)=>`<div class="item"><div class="ico">${V.find(x=>x[0]===p.type)?.[1]||'💳'}</div><div class="info"><div class="t">${V.find(x=>x[0]===p.type)?.[2]||p.type}</div><div class="s">${p.note||'Versement'} · ${p.time}</div></div><div class="amt">${fmt(p.amount)} F</div></div>`).join('')||'<div class="empty">Aucun versement enregistré</div>';count.textContent=state.payments.length}
-async function addPayment(){let a=n(amount.value);if(a<=0)return alert('Indiquez un montant.');state.payments.push({type:vtype,amount:a,note:note.value.trim(),time:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})});amount.value='';note.value='';await save();renderService()}
-async function addExpense(){let m=depMotif.value.trim(),a=n(depAmount.value);if(!m||a<=0)return alert('Indiquez le motif et le montant.');state.expenses.push({motif:m,amount:a,time:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})});depMotif.value='';depAmount.value='';await save();renderService()}
-function goClosing(){renderClosing();show('closing')}
-function renderClosing(){closingPumps.innerHTML=state.pumps.map((p,i)=>`<div class="fuel"><div class="fuel-head">${p.label}<span class="price">Ouverture ${p.ouv||0} L</span></div><div class="field" style="margin-top:10px"><label>Index clôture</label><input value="${p.ferm}" inputmode="decimal" onchange="state.pumps[${i}].ferm=this.value"></div></div>`).join('')}
-async function closeShift(){state.signature=signature.value.trim();if(!state.signature)return alert('Saisissez votre nom pour signer.');state.status='closed';state.closedAt=new Date().toISOString();await save();show('situation')}
-function totals(){let fuel=state.pumps.reduce((s,p)=>s+Math.max(0,n(p.ferm)-n(p.ouv))*n(state.prices[p.fuel]),0),pay=state.payments.reduce((s,p)=>s+p.amount,0),dep=state.expenses.reduce((s,p)=>s+p.amount,0);return{fuel,pay,dep,received:pay+dep,gap:pay+dep-fuel}}
-function renderSituation(){let t=totals();situation.className='situation '+(t.gap>=0?'ok':'bad');situation.innerHTML=`<div class="tag">${t.gap===0?'Caisse juste':t.gap<0?'Manquant':'Excédent'}</div><div class="amount">${t.gap>0?'+':''}${fmt(t.gap)} F</div><div class="hint">Reçu (${fmt(t.received)}) − Vendu carburant (${fmt(t.fuel)})</div>`;summary.innerHTML=`<div class="row"><span>Vendu carburant</span><span>${fmt(t.fuel)} F</span></div><div class="row"><span>Versements</span><span>${fmt(t.pay)} F</span></div><div class="row"><span>Dépenses</span><span>-${fmt(t.dep)} F</span></div><div class="row total"><span>Écart</span><span class="${t.gap<0?'bad':'good'}">${t.gap>0?'+':''}${fmt(t.gap)} F</span></div>`;situationDate.textContent=new Date().toLocaleDateString('fr-FR');}
-function backService(){state.status='open';show('service')}
-function shareWhatsApp(){let t=totals(),msg=`*Ma Station — Situation du ${new Date().toLocaleDateString('fr-FR')}*\nStation : ${state.station}\nPompiste : ${state.pompiste}\nPoste : ${state.poste||'—'} · Îlot : ${state.ilot||'—'}\n\nVendu : ${fmt(t.fuel)} F\nReçu : ${fmt(t.received)} F\nÉcart : ${t.gap>0?'+':''}${fmt(t.gap)} F\n\nSigné : ${state.signature}`;window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank')}
-async function loadHistory(){try{let r=await sb.from('shifts').select('shift_date,data').eq('user_id',user.id).order('shift_date',{ascending:false}).limit(60);history.innerHTML=(r.data||[]).filter(x=>x.data?.status==='closed').map(x=>{let d=x.data, old=state;state=d;let t=totals();state=old;return `<div class="history-item"><div class="date">${new Date(x.shift_date+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}<small>${d.station||''} · Vendu ${fmt(t.fuel)} F</small></div><div class="badge ${t.gap<0?'bad':'good'}">${t.gap>0?'+':''}${fmt(t.gap)} F</div></div>`}).join('')||'<div class="empty">Aucune journée clôturée.</div>'}catch(e){history.innerHTML='<div class="empty">Historique indisponible.</div>'}}
-async function signOut(){await sb.auth.signOut()}
-</script></body></html>

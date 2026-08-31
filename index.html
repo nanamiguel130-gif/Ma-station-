@@ -2160,3 +2160,3067 @@ main{
 
 
 <script>
+// ============================================================
+// MA STATION — SUIVI DE SERVICE
+// PARTIE 2/4 — JAVASCRIPT : AUTH + PROFIL + POMPISTE
+// ============================================================
+
+// ============================================================
+// CONFIGURATION SUPABASE
+// ============================================================
+
+// ⚠️ GARDE TES PROPRES VALEURS SUPABASE ICI
+const SUPABASE_URL = 'TON_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'TON_SUPABASE_ANON_KEY';
+
+const sb = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
+
+// ============================================================
+// VARIABLES GLOBALES
+// ============================================================
+
+let currentUser = null;
+
+let profileInfo = {
+  id: '',
+  full_name: '',
+  phone: '',
+  email: '',
+  station_name: '',
+  role: ''
+};
+
+let stationOptions = [];
+
+let pompisteState = defaultPompisteState();
+
+let currentEditVersementId = null;
+let currentEditDepenseId = null;
+
+let historyCache = [];
+
+
+// ============================================================
+// UTILITAIRES
+// ============================================================
+
+function uid(){
+  return Date.now().toString(36) + Math.random().toString(36).substring(2,9);
+}
+
+function num(v){
+  if(v === null || v === undefined || v === '') return 0;
+
+  if(typeof v === 'number') return Number.isFinite(v) ? v : 0;
+
+  const clean = String(v)
+    .replace(/\s/g,'')
+    .replace(',', '.')
+    .replace(/[^\d.-]/g,'');
+
+  const n = Number(clean);
+
+  return Number.isFinite(n) ? n : 0;
+}
+
+function fmt(v){
+  return Math.round(num(v)).toLocaleString('fr-FR');
+}
+
+function todayDate(){
+  const d = new Date();
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+
+  return `${y}-${m}-${day}`;
+}
+
+function escapeHtml(value){
+  return String(value ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+
+
+// ============================================================
+// TYPES DE VERSEMENT
+// ============================================================
+
+const VTYPES = [
+  { key:'cash', label:'Espèces', ic:'💵' },
+  { key:'orange', label:'Orange Money', ic:'🟠' },
+  { key:'mtn', label:'MTN Mobile Money', ic:'🟡' },
+  { key:'tomcard', label:'Tom Card', ic:'💳' },
+  { key:'voucher', label:'Bon / Voucher', ic:'🎟️' },
+  { key:'bank', label:'Versement bancaire', ic:'🏦' }
+];
+
+
+// ============================================================
+// ÉTAT PAR DÉFAUT DU POMPISTE
+// ============================================================
+
+function defaultPompisteState(){
+
+  return {
+
+    status: 'none',
+
+    openedAt: null,
+    closedAt: null,
+
+    stationName: '',
+    pompisteName: '',
+
+    posteNumber: '',
+    ilotNumber: '',
+
+    signature: '',
+
+    fuels: {
+      super: {
+        label: 'Super',
+        opening: '',
+        closing: '',
+        price: 0
+      },
+
+      gazole: {
+        label: 'Gazole',
+        opening: '',
+        closing: '',
+        price: 0
+      },
+
+      petrole: {
+        label: 'Pétrole',
+        opening: '',
+        closing: '',
+        price: 0
+      }
+    },
+
+    gaz: {
+      '6kg': {
+        label: 'Gaz 6 kg',
+        opening: 0,
+        recharge: 0,
+        consigne: 0,
+        price: 0
+      },
+
+      '12kg': {
+        label: 'Gaz 12 kg',
+        opening: 0,
+        recharge: 0,
+        consigne: 0,
+        price: 0
+      },
+
+      '35kg': {
+        label: 'Gaz 35 kg',
+        opening: 0,
+        recharge: 0,
+        consigne: 0,
+        price: 0
+      }
+    },
+
+    versements: [],
+
+    depenses: [],
+
+    clientCredits: [],
+
+    notes: ''
+  };
+}
+
+
+// ============================================================
+// CALCUL DES VENTES
+// ============================================================
+
+function calculateFuelSale(fuel){
+
+  const opening = num(fuel.opening);
+  const closing = num(fuel.closing);
+  const price = num(fuel.price);
+
+  const qty = Math.max(0, closing - opening);
+
+  const montant = qty * price;
+
+  return {
+    qty,
+    montant
+  };
+}
+
+
+function calculateGazSale(gaz){
+
+  const recharge = num(gaz.recharge);
+  const consigne = num(gaz.consigne);
+  const price = num(gaz.price);
+
+  const montant =
+    (recharge + consigne) * price;
+
+  return {
+    recharge,
+    consigne,
+    montant
+  };
+}
+
+
+// ============================================================
+// CALCUL GLOBAL DU SERVICE
+// ============================================================
+
+function shiftTotals(d){
+
+  d = d || defaultPompisteState();
+
+  const fuelSales = [];
+
+  let totalCA = 0;
+
+  Object.values(d.fuels || {}).forEach(fuel => {
+
+    const sale = calculateFuelSale(fuel);
+
+    fuelSales.push({
+      label: fuel.label,
+      qty: sale.qty,
+      montant: sale.montant
+    });
+
+    totalCA += sale.montant;
+  });
+
+
+  const gazSales = [];
+
+  Object.values(d.gaz || {}).forEach(gaz => {
+
+    const sale = calculateGazSale(gaz);
+
+    gazSales.push({
+      label: gaz.label,
+      recharges: sale.recharge,
+      consignes: sale.consigne,
+      montant: sale.montant
+    });
+
+    totalCA += sale.montant;
+  });
+
+
+  const pay = {};
+
+  VTYPES.forEach(v => {
+    pay[v.key] = 0;
+  });
+
+
+  (d.versements || []).forEach(v => {
+
+    const key = v.type || 'cash';
+
+    if(pay[key] === undefined){
+      pay[key] = 0;
+    }
+
+    pay[key] += num(v.montant);
+  });
+
+
+  const totalRecu =
+    Object.values(pay).reduce(
+      (sum, value) => sum + num(value),
+      0
+    );
+
+
+  const totalDepenses =
+    (d.depenses || []).reduce(
+      (sum, dep) => sum + num(dep.montant),
+      0
+    );
+
+
+  /*
+   * Situation :
+   *
+   * Vendu théorique = ventes carburants + gaz
+   * Reçu = versements enregistrés
+   * Dépenses = sorties autorisées
+   *
+   * Écart = reçu + dépenses - vendu
+   */
+
+  const ecart =
+    totalRecu +
+    totalDepenses -
+    totalCA;
+
+
+  return {
+
+    fuelSales,
+    gazSales,
+
+    totalCA,
+    totalRecu,
+    totalDepenses,
+
+    pay,
+
+    ecart
+  };
+}
+
+
+// ============================================================
+// AFFICHAGE DES ESPACES
+// ============================================================
+
+function hideAllRoots(){
+
+  const ids = [
+    'appRoot',
+    'supervisorRoot',
+    'boutiqueRoot'
+  ];
+
+  ids.forEach(id => {
+
+    const el = document.getElementById(id);
+
+    if(el){
+      el.classList.add('hidden');
+    }
+
+  });
+}
+
+
+function showAppRoot(){
+
+  hideAllRoots();
+
+  const root = document.getElementById('appRoot');
+
+  if(root){
+    root.classList.remove('hidden');
+  }
+}
+
+
+// ============================================================
+// NAVIGATION POMPISTE
+// ============================================================
+
+function showStage(stage){
+
+  document
+    .querySelectorAll('#appRoot .view')
+    .forEach(v => v.classList.remove('active'));
+
+  const target =
+    document.getElementById('view-' + stage);
+
+  if(target){
+    target.classList.add('active');
+  }
+}
+
+
+// ============================================================
+// AUTHENTIFICATION
+// ============================================================
+
+async function checkSession(){
+
+  try{
+
+    const {
+      data: {
+        session
+      }
+    } = await sb.auth.getSession();
+
+    if(session && session.user){
+
+      currentUser = session.user;
+
+      await loadCurrentProfile();
+
+      await routeAfterLogin();
+
+    }else{
+
+      showLogin();
+
+    }
+
+  }catch(e){
+
+    console.error(
+      'Erreur session :',
+      e
+    );
+
+    showLogin();
+
+  }
+}
+
+
+function showLogin(){
+
+  hideAllRoots();
+
+  const login =
+    document.getElementById('loginRoot');
+
+  if(login){
+    login.classList.remove('hidden');
+  }
+}
+
+
+// ============================================================
+// CONNEXION
+// ============================================================
+
+async function loginUser(){
+
+  const email =
+    document.getElementById('loginEmail')?.value.trim();
+
+  const password =
+    document.getElementById('loginPassword')?.value;
+
+  const msg =
+    document.getElementById('loginMsg');
+
+
+  if(!email || !password){
+
+    if(msg){
+      msg.textContent =
+        'Veuillez renseigner votre e-mail et votre mot de passe.';
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+    return;
+  }
+
+
+  try{
+
+    if(msg){
+      msg.textContent =
+        'Connexion en cours…';
+
+      msg.style.color =
+        'var(--muted)';
+    }
+
+
+    const {
+      data,
+      error
+    } = await sb.auth.signInWithPassword({
+
+      email,
+      password
+
+    });
+
+
+    if(error) throw error;
+
+
+    currentUser =
+      data.user;
+
+
+    await loadCurrentProfile();
+
+    await routeAfterLogin();
+
+
+  }catch(e){
+
+    console.error(e);
+
+    if(msg){
+
+      msg.textContent =
+        'Erreur : ' + e.message;
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+  }
+
+}
+
+
+// ============================================================
+// INSCRIPTION
+// ============================================================
+
+async function registerUser(){
+
+  const email =
+    document.getElementById('registerEmail')?.value.trim();
+
+  const password =
+    document.getElementById('registerPassword')?.value;
+
+  const fullName =
+    document.getElementById('registerName')?.value.trim();
+
+  const role =
+    document.getElementById('registerRole')?.value ||
+    'pompiste';
+
+  const msg =
+    document.getElementById('registerMsg');
+
+
+  if(!email || !password || !fullName){
+
+    if(msg){
+
+      msg.textContent =
+        'Tous les champs sont obligatoires.';
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+    return;
+  }
+
+
+  if(password.length < 6){
+
+    if(msg){
+
+      msg.textContent =
+        'Le mot de passe doit contenir au moins 6 caractères.';
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+    return;
+  }
+
+
+  try{
+
+    if(msg){
+      msg.textContent =
+        'Création du compte…';
+    }
+
+
+    const {
+      data,
+      error
+    } = await sb.auth.signUp({
+
+      email,
+      password,
+
+      options:{
+        data:{
+          full_name: fullName,
+          role
+        }
+      }
+
+    });
+
+
+    if(error) throw error;
+
+
+    if(data.user){
+
+      await sb.from('profiles').upsert({
+
+        id: data.user.id,
+
+        full_name: fullName,
+
+        email,
+
+        role
+
+      });
+
+    }
+
+
+    if(msg){
+
+      msg.textContent =
+        'Compte créé. Vous pouvez maintenant vous connecter.';
+
+      msg.style.color =
+        'var(--good)';
+    }
+
+
+  }catch(e){
+
+    console.error(e);
+
+    if(msg){
+
+      msg.textContent =
+        'Erreur : ' + e.message;
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+  }
+
+}
+
+
+// ============================================================
+// DÉCONNEXION
+// ============================================================
+
+async function logoutUser(){
+
+  try{
+
+    await sb.auth.signOut();
+
+  }catch(e){
+
+    console.warn(
+      'Erreur déconnexion :',
+      e.message
+    );
+
+  }
+
+  currentUser = null;
+
+  profileInfo = {
+    id:'',
+    full_name:'',
+    phone:'',
+    email:'',
+    station_name:'',
+    role:''
+  };
+
+  pompisteState =
+    defaultPompisteState();
+
+  showLogin();
+}
+
+
+// ============================================================
+// CHARGEMENT DU PROFIL
+// ============================================================
+
+async function loadCurrentProfile(){
+
+  if(!currentUser){
+    return;
+  }
+
+
+  try{
+
+    const {
+      data,
+      error
+    } = await sb
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .maybeSingle();
+
+
+    if(error) throw error;
+
+
+    profileInfo = {
+
+      id: currentUser.id,
+
+      full_name:
+        data?.full_name ||
+        currentUser.user_metadata?.full_name ||
+        '',
+
+      phone:
+        data?.phone ||
+        '',
+
+      email:
+        data?.email ||
+        currentUser.email ||
+        '',
+
+      station_name:
+        data?.station_name ||
+        '',
+
+      role:
+        data?.role ||
+        currentUser.user_metadata?.role ||
+        'pompiste'
+    };
+
+
+  }catch(e){
+
+    console.warn(
+      'Profil indisponible :',
+      e.message
+    );
+
+
+    profileInfo.id =
+      currentUser.id;
+
+    profileInfo.email =
+      currentUser.email || '';
+
+  }
+
+}
+
+
+// ============================================================
+// ROUTAGE APRÈS CONNEXION
+// ============================================================
+
+async function routeAfterLogin(){
+
+  const role =
+    String(profileInfo.role || 'pompiste')
+      .toLowerCase();
+
+
+  if(role === 'superviseur' ||
+     role === 'supervisor'){
+
+    if(typeof initSupervisor === 'function'){
+      await initSupervisor();
+    }
+
+    return;
+  }
+
+
+  if(role === 'boutique' ||
+     role === 'hotesse' ||
+     role === 'hôtesse'){
+
+    if(typeof initBoutique === 'function'){
+      await initBoutique();
+    }
+
+    return;
+  }
+
+
+  await initPompiste();
+}
+
+
+// ============================================================
+// INITIALISATION POMPISTE
+// ============================================================
+
+async function initPompiste(){
+
+  hideAllRoots();
+
+  const root =
+    document.getElementById('appRoot');
+
+  if(root){
+    root.classList.remove('hidden');
+  }
+
+
+  await loadStationOptions();
+
+  await loadTodayPompisteShift();
+
+  updatePompisteHeader();
+
+}
+
+
+// ============================================================
+// CHARGEMENT DES STATIONS
+// ============================================================
+
+async function loadStationOptions(){
+
+  try{
+
+    const {
+      data,
+      error
+    } = await sb
+      .from('profiles')
+      .select('station_name')
+      .not('station_name','is',null);
+
+
+    if(error) throw error;
+
+
+    stationOptions =
+      [...new Set(
+        (data || [])
+          .map(r => r.station_name)
+          .filter(Boolean)
+      )];
+
+
+    if(
+      profileInfo.station_name &&
+      !stationOptions.includes(
+        profileInfo.station_name
+      )
+    ){
+
+      stationOptions.push(
+        profileInfo.station_name
+      );
+
+    }
+
+
+  }catch(e){
+
+    console.warn(
+      'Stations indisponibles :',
+      e.message
+    );
+
+
+    stationOptions =
+      profileInfo.station_name
+        ? [profileInfo.station_name]
+        : [];
+
+  }
+
+}
+
+
+// ============================================================
+// CHARGEMENT DU SERVICE DU JOUR
+// ============================================================
+
+async function loadTodayPompisteShift(){
+
+  if(!currentUser){
+    return;
+  }
+
+
+  try{
+
+    const {
+      data,
+      error
+    } = await sb
+      .from('shifts')
+      .select('data')
+      .eq('user_id', currentUser.id)
+      .eq('shift_date', todayDate())
+      .maybeSingle();
+
+
+    if(error) throw error;
+
+
+    if(
+      data &&
+      data.data &&
+      data.data.status
+    ){
+
+      pompisteState =
+        mergePompisteState(
+          defaultPompisteState(),
+          data.data
+        );
+
+    }else{
+
+      pompisteState =
+        defaultPompisteState();
+
+    }
+
+
+  }catch(e){
+
+    console.warn(
+      'Chargement service impossible :',
+      e.message
+    );
+
+    pompisteState =
+      defaultPompisteState();
+
+  }
+
+
+  routePompisteStage();
+}
+
+
+// ============================================================
+// FUSION ÉTAT
+// ============================================================
+
+function mergePompisteState(base, saved){
+
+  const result = {
+    ...base,
+    ...saved
+  };
+
+
+  result.fuels = {
+    ...base.fuels,
+    ...(saved.fuels || {})
+  };
+
+
+  result.gaz = {
+    ...base.gaz,
+    ...(saved.gaz || {})
+  };
+
+
+  result.versements =
+    Array.isArray(saved.versements)
+      ? saved.versements
+      : [];
+
+
+  result.depenses =
+    Array.isArray(saved.depenses)
+      ? saved.depenses
+      : [];
+
+
+  result.clientCredits =
+    Array.isArray(saved.clientCredits)
+      ? saved.clientCredits
+      : [];
+
+
+  return result;
+}
+
+
+// ============================================================
+// SAUVEGARDE SERVICE
+// ============================================================
+
+async function persistPompiste(){
+
+  if(!currentUser){
+    return false;
+  }
+
+
+  try{
+
+    const {
+      error
+    } = await sb
+      .from('shifts')
+      .upsert({
+
+        user_id:
+          currentUser.id,
+
+        shift_date:
+          todayDate(),
+
+        data:
+          pompisteState,
+
+        updated_at:
+          new Date().toISOString()
+
+      },{
+        onConflict:
+          'user_id,shift_date'
+      });
+
+
+    if(error) throw error;
+
+
+    return true;
+
+
+  }catch(e){
+
+    console.error(
+      'Sauvegarde service :',
+      e.message
+    );
+
+    return false;
+  }
+
+}
+
+
+// ============================================================
+// ROUTAGE DU SERVICE POMPISTE
+// ============================================================
+
+function routePompisteStage(){
+
+  updatePompisteHeader();
+
+
+  if(pompisteState.status === 'none'){
+
+    renderPompisteOuverture();
+
+    showStage('ouverture');
+
+  }
+
+  else if(pompisteState.status === 'open'){
+
+    renderPompisteService();
+
+    showStage('service');
+
+  }
+
+  else if(pompisteState.status === 'closed'){
+
+    computeAndShowSituation(true);
+
+  }
+
+}
+
+
+// ============================================================
+// HEADER POMPISTE
+// ============================================================
+
+function updatePompisteHeader(){
+
+  const station =
+    pompisteState.stationName ||
+    profileInfo.station_name ||
+    'Ma Station';
+
+
+  const name =
+    pompisteState.pompisteName ||
+    profileInfo.full_name ||
+    'Pompiste';
+
+
+  const stationEl =
+    document.getElementById('stationName');
+
+  if(stationEl){
+    stationEl.textContent =
+      station;
+  }
+
+
+  const userEl =
+    document.getElementById('userName');
+
+  if(userEl){
+    userEl.textContent =
+      name;
+  }
+
+
+  const roleEl =
+    document.getElementById('userRole');
+
+  if(roleEl){
+    roleEl.textContent =
+      'Pompiste';
+  }
+
+}
+
+
+// ============================================================
+// OUVERTURE DU SERVICE
+// ============================================================
+
+function renderPompisteOuverture(){
+
+  const stationSelect =
+    document.getElementById('infoStation');
+
+  const newStation =
+    document.getElementById('infoStationNew');
+
+
+  if(stationSelect){
+
+    stationSelect.innerHTML =
+      '<option value="">— Choisir une station —</option>' +
+
+      stationOptions
+        .map(s =>
+          `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`
+        )
+        .join('') +
+
+      '<option value="__new__">➕ Nouvelle station...</option>';
+
+
+    const current =
+      pompisteState.stationName ||
+      profileInfo.station_name ||
+      '';
+
+
+    if(current &&
+       stationOptions.includes(current)){
+
+      stationSelect.value =
+        current;
+
+      if(newStation){
+        newStation.classList.add('hidden');
+      }
+
+    }
+
+    else if(current){
+
+      stationSelect.value =
+        '__new__';
+
+      if(newStation){
+
+        newStation.value =
+          current;
+
+        newStation.classList.remove(
+          'hidden'
+        );
+
+      }
+
+    }
+
+  }
+
+
+  if(stationSelect){
+
+    stationSelect.onchange =
+      function(){
+
+        if(this.value === '__new__'){
+
+          if(newStation){
+
+            newStation.classList.remove(
+              'hidden'
+            );
+
+            newStation.value =
+              '';
+
+            newStation.focus();
+
+          }
+
+          pompisteState.stationName =
+            '';
+
+        }else{
+
+          if(newStation){
+            newStation.classList.add(
+              'hidden'
+            );
+          }
+
+          pompisteState.stationName =
+            this.value;
+        }
+
+      };
+
+  }
+
+
+  if(newStation){
+
+    newStation.oninput =
+      e =>
+        pompisteState.stationName =
+          e.target.value;
+
+  }
+
+
+  const nameInput =
+    document.getElementById('infoPompiste');
+
+  if(nameInput){
+
+    nameInput.value =
+      pompisteState.pompisteName ||
+      profileInfo.full_name ||
+      '';
+
+    nameInput.oninput =
+      e =>
+        pompisteState.pompisteName =
+          e.target.value;
+
+  }
+
+
+  const poste =
+    document.getElementById('infoPoste');
+
+  if(poste){
+
+    poste.value =
+      pompisteState.posteNumber ||
+      '';
+
+    poste.oninput =
+      e =>
+        pompisteState.posteNumber =
+          e.target.value;
+
+  }
+
+
+  const ilot =
+    document.getElementById('infoIlot');
+
+  if(ilot){
+
+    ilot.value =
+      pompisteState.ilotNumber ||
+      '';
+
+    ilot.oninput =
+      e =>
+        pompisteState.ilotNumber =
+          e.target.value;
+
+  }
+
+}
+
+
+// ============================================================
+// OUVRIR LE POSTE
+// ============================================================
+
+async function openPompisteShift(){
+
+  const station =
+    String(
+      pompisteState.stationName || ''
+    ).trim();
+
+
+  const name =
+    String(
+      pompisteState.pompisteName ||
+      profileInfo.full_name ||
+      ''
+    ).trim();
+
+
+  const msg =
+    document.getElementById(
+      'openStatusMsg'
+    );
+
+
+  if(!station){
+
+    if(msg){
+
+      msg.textContent =
+        'Veuillez choisir ou saisir le nom de la station.';
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+    return;
+  }
+
+
+  if(!name){
+
+    if(msg){
+
+      msg.textContent =
+        'Veuillez indiquer le nom du pompiste.';
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+    return;
+  }
+
+
+  pompisteState.stationName =
+    station;
+
+  pompisteState.pompisteName =
+    name;
+
+  pompisteState.status =
+    'open';
+
+  pompisteState.openedAt =
+    new Date().toISOString();
+
+
+  try{
+
+    await sb
+      .from('profiles')
+      .upsert({
+
+        id:
+          currentUser.id,
+
+        full_name:
+          name,
+
+        email:
+          profileInfo.email,
+
+        phone:
+          profileInfo.phone,
+
+        station_name:
+          station,
+
+        role:
+          'pompiste'
+
+      });
+
+
+  }catch(e){
+
+    console.warn(
+      'Profil non synchronisé :',
+      e.message
+    );
+
+  }
+
+
+  const ok =
+    await persistPompiste();
+
+
+  if(ok){
+
+    routePompisteStage();
+
+  }else{
+
+    pompisteState.status =
+      'none';
+
+    if(msg){
+
+      msg.textContent =
+        "Échec de l'enregistrement. Vérifiez votre connexion.";
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+  }
+
+}
+
+
+// ============================================================
+// SERVICE EN COURS
+// ============================================================
+
+function renderPompisteService(){
+
+  renderFuelFields();
+
+  renderGazFields();
+
+  renderVersements();
+
+  renderDepenses();
+
+  updateServiceSummary();
+
+}
+
+
+// ============================================================
+// CHAMPS CARBURANTS
+// ============================================================
+
+function renderFuelFields(){
+
+  Object.entries(
+    pompisteState.fuels
+  ).forEach(([key,fuel]) => {
+
+    const opening =
+      document.getElementById(
+        'fuel_' + key + '_opening'
+      );
+
+    const closing =
+      document.getElementById(
+        'fuel_' + key + '_closing'
+      );
+
+    const price =
+      document.getElementById(
+        'fuel_' + key + '_price'
+      );
+
+
+    if(opening){
+
+      opening.value =
+        fuel.opening ?? '';
+
+      opening.oninput =
+        e => {
+
+          fuel.opening =
+            e.target.value;
+
+          updateServiceSummary();
+
+        };
+
+    }
+
+
+    if(closing){
+
+      closing.value =
+        fuel.closing ?? '';
+
+      closing.oninput =
+        e => {
+
+          fuel.closing =
+            e.target.value;
+
+          updateServiceSummary();
+
+        };
+
+    }
+
+
+    if(price){
+
+      price.value =
+        fuel.price || '';
+
+      price.oninput =
+        e => {
+
+          fuel.price =
+            e.target.value;
+
+          updateServiceSummary();
+
+        };
+
+    }
+
+  });
+
+}
+
+
+// ============================================================
+// CHAMPS GAZ
+// ============================================================
+
+function renderGazFields(){
+
+  Object.entries(
+    pompisteState.gaz
+  ).forEach(([key,gaz]) => {
+
+    const opening =
+      document.getElementById(
+        'gaz_' + key + '_opening'
+      );
+
+    const recharge =
+      document.getElementById(
+        'gaz_' + key + '_recharge'
+      );
+
+    const consigne =
+      document.getElementById(
+        'gaz_' + key + '_consigne'
+      );
+
+    const price =
+      document.getElementById(
+        'gaz_' + key + '_price'
+      );
+
+
+    if(opening){
+
+      opening.value =
+        gaz.opening ?? 0;
+
+      opening.oninput =
+        e =>
+          gaz.opening =
+            num(e.target.value);
+
+    }
+
+
+    if(recharge){
+
+      recharge.value =
+        gaz.recharge ?? 0;
+
+      recharge.oninput =
+        e => {
+
+          gaz.recharge =
+            num(e.target.value);
+
+          updateServiceSummary();
+
+        };
+
+    }
+
+
+    if(consigne){
+
+      consigne.value =
+        gaz.consigne ?? 0;
+
+      consigne.oninput =
+        e => {
+
+          gaz.consigne =
+            num(e.target.value);
+
+          updateServiceSummary();
+
+        };
+
+    }
+
+
+    if(price){
+
+      price.value =
+        gaz.price || '';
+
+      price.oninput =
+        e => {
+
+          gaz.price =
+            e.target.value;
+
+          updateServiceSummary();
+
+        };
+
+    }
+
+  });
+
+}
+
+
+// ============================================================
+// RÉSUMÉ DU SERVICE
+// ============================================================
+
+function updateServiceSummary(){
+
+  const t =
+    shiftTotals(
+      pompisteState
+    );
+
+
+  const el =
+    document.getElementById(
+      'serviceTotalCA'
+    );
+
+
+  if(el){
+
+    el.textContent =
+      fmt(t.totalCA) + ' F';
+
+  }
+
+
+  const recu =
+    document.getElementById(
+      'serviceTotalRecu'
+    );
+
+
+  if(recu){
+
+    recu.textContent =
+      fmt(t.totalRecu) + ' F';
+
+  }
+
+
+  const ecart =
+    document.getElementById(
+      'serviceEcart'
+    );
+
+
+  if(ecart){
+
+    ecart.textContent =
+      (t.ecart > 0 ? '+' : '') +
+      fmt(t.ecart) +
+      ' F';
+
+  }
+
+}
+
+
+// ============================================================
+// VERSEMENTS
+// ============================================================
+
+function renderVersements(){
+
+  const box =
+    document.getElementById(
+      'versementsList'
+    );
+
+  if(!box){
+    return;
+  }
+
+
+  box.innerHTML =
+    renderVersementsReadOnly(
+      pompisteState.versements
+    );
+
+
+  const count =
+    document.getElementById(
+      'versementCount'
+    );
+
+  if(count){
+
+    count.textContent =
+      pompisteState.versements.length
+        ? `(${pompisteState.versements.length})`
+        : '';
+
+  }
+
+}
+
+
+function renderVersementsReadOnly(list){
+
+  if(!Array.isArray(list) ||
+     !list.length){
+
+    return '<div class="empty">Aucun versement enregistré</div>';
+
+  }
+
+
+  return list
+    .map(v => {
+
+      const type =
+        VTYPES.find(
+          x => x.key === v.type
+        );
+
+
+      const label =
+        type
+          ? `${type.ic} ${type.label}`
+          : v.type;
+
+
+      let sub =
+        v.time || '';
+
+
+      if(v.reference){
+
+        sub +=
+          ' · Réf. ' +
+          escapeHtml(
+            v.reference
+          );
+
+      }
+
+
+      if(v.client){
+
+        sub +=
+          ' · Client : ' +
+          escapeHtml(
+            v.client
+          );
+
+      }
+
+
+      return `
+        <div class="list-item">
+
+          <span class="ic">
+            ${type ? type.ic : '💰'}
+          </span>
+
+          <div class="info">
+
+            <div class="t">
+              ${escapeHtml(label)}
+            </div>
+
+            <div class="s">
+              ${sub}
+            </div>
+
+          </div>
+
+          <span class="amt">
+            +${fmt(v.montant)} F
+          </span>
+
+        </div>
+      `;
+
+    })
+    .join('');
+
+}
+
+
+// ============================================================
+// AJOUTER UN VERSEMENT
+// ============================================================
+
+async function addVersement(){
+
+  const type =
+    document.getElementById(
+      'versementType'
+    )?.value ||
+    'cash';
+
+
+  const montant =
+    num(
+      document.getElementById(
+        'versementMontant'
+      )?.value
+    );
+
+
+  const reference =
+    document.getElementById(
+      'versementReference'
+    )?.value.trim() ||
+    '';
+
+
+  const client =
+    document.getElementById(
+      'versementClient'
+    )?.value.trim() ||
+    '';
+
+
+  if(montant <= 0){
+
+    alert(
+      'Veuillez indiquer un montant valide.'
+    );
+
+    return;
+  }
+
+
+  if(!client){
+
+    alert(
+      'Veuillez indiquer le client concerné par ce versement.'
+    );
+
+    return;
+  }
+
+
+  const now =
+    new Date();
+
+
+  const time =
+    now.toLocaleTimeString(
+      'fr-FR',
+      {
+        hour:'2-digit',
+        minute:'2-digit'
+      }
+    );
+
+
+  if(currentEditVersementId){
+
+    const v =
+      pompisteState.versements
+        .find(
+          x =>
+            x.id ===
+            currentEditVersementId
+        );
+
+
+    if(v){
+
+      v.type =
+        type;
+
+      v.montant =
+        montant;
+
+      v.reference =
+        reference;
+
+      v.client =
+        client;
+
+    }
+
+
+    currentEditVersementId =
+      null;
+
+  }else{
+
+    pompisteState.versements.push({
+
+      id:
+        uid(),
+
+      type,
+
+      montant,
+
+      reference,
+
+      client,
+
+      time
+
+    });
+
+  }
+
+
+  clearVersementForm();
+
+  renderVersements();
+
+  updateServiceSummary();
+
+  await persistPompiste();
+
+}
+
+
+// ============================================================
+// FORMULAIRE VERSEMENT
+// ============================================================
+
+function clearVersementForm(){
+
+  const ids = [
+
+    'versementMontant',
+    'versementReference',
+    'versementClient'
+
+  ];
+
+
+  ids.forEach(id => {
+
+    const el =
+      document.getElementById(id);
+
+    if(el){
+      el.value = '';
+    }
+
+  });
+
+
+  const btn =
+    document.getElementById(
+      'addVersementBtn'
+    );
+
+
+  if(btn){
+
+    btn.textContent =
+      '+ Ajouter le versement';
+
+  }
+
+}
+
+
+// ============================================================
+// MODIFICATION VERSEMENT
+// ============================================================
+
+function editVersement(id){
+
+  const v =
+    pompisteState.versements
+      .find(
+        x => x.id === id
+      );
+
+
+  if(!v){
+    return;
+  }
+
+
+  currentEditVersementId =
+    id;
+
+
+  const type =
+    document.getElementById(
+      'versementType'
+    );
+
+  const montant =
+    document.getElementById(
+      'versementMontant'
+    );
+
+  const reference =
+    document.getElementById(
+      'versementReference'
+    );
+
+  const client =
+    document.getElementById(
+      'versementClient'
+    );
+
+
+  if(type){
+    type.value =
+      v.type;
+  }
+
+
+  if(montant){
+    montant.value =
+      v.montant;
+  }
+
+
+  if(reference){
+    reference.value =
+      v.reference || '';
+  }
+
+
+  if(client){
+    client.value =
+      v.client || '';
+  }
+
+
+  const btn =
+    document.getElementById(
+      'addVersementBtn'
+    );
+
+
+  if(btn){
+
+    btn.textContent =
+      '✓ Enregistrer la modification';
+
+  }
+
+}
+
+
+// ============================================================
+// SUPPRESSION VERSEMENT
+// ============================================================
+
+async function removeVersement(id){
+
+  if(
+    !confirm(
+      'Supprimer ce versement ?'
+    )
+  ){
+
+    return;
+  }
+
+
+  pompisteState.versements =
+    pompisteState.versements
+      .filter(
+        v => v.id !== id
+      );
+
+
+  renderVersements();
+
+  updateServiceSummary();
+
+  await persistPompiste();
+
+}
+
+
+// ============================================================
+// DÉPENSES
+// ============================================================
+
+function renderDepenses(){
+
+  const box =
+    document.getElementById(
+      'depensesList'
+    );
+
+  if(!box){
+    return;
+  }
+
+
+  box.innerHTML =
+    (pompisteState.depenses || [])
+      .map(dep => `
+
+        <div class="list-item">
+
+          <span class="ic">
+            💸
+          </span>
+
+          <div class="info">
+
+            <div class="t">
+              ${escapeHtml(dep.motif)}
+            </div>
+
+            <div class="s">
+              ${escapeHtml(dep.time || '')}
+            </div>
+
+          </div>
+
+          <span class="amt">
+            -${fmt(dep.montant)} F
+          </span>
+
+          <button
+            class="del"
+            onclick="editDepense('${dep.id}')"
+            style="color:var(--amber)"
+          >
+            ✎
+          </button>
+
+          <button
+            class="del"
+            onclick="removeDepense('${dep.id}')"
+          >
+            ✕
+          </button>
+
+        </div>
+
+      `)
+      .join('') ||
+
+    '<div class="empty">Aucune dépense enregistrée</div>';
+
+}
+
+
+// ============================================================
+// AJOUT DÉPENSE
+// ============================================================
+
+async function addDepense(){
+
+  const motif =
+    document.getElementById(
+      'depenseMotif'
+    )?.value.trim();
+
+
+  const montant =
+    num(
+      document.getElementById(
+        'depenseMontant'
+      )?.value
+    );
+
+
+  if(!motif){
+
+    alert(
+      'Indiquez le motif de la dépense.'
+    );
+
+    return;
+  }
+
+
+  if(montant <= 0){
+
+    alert(
+      'Indiquez un montant valide.'
+    );
+
+    return;
+  }
+
+
+  const time =
+    new Date()
+      .toLocaleTimeString(
+        'fr-FR',
+        {
+          hour:'2-digit',
+          minute:'2-digit'
+        }
+      );
+
+
+  if(currentEditDepenseId){
+
+    const dep =
+      pompisteState.depenses
+        .find(
+          d =>
+            d.id ===
+            currentEditDepenseId
+        );
+
+
+    if(dep){
+
+      dep.motif =
+        motif;
+
+      dep.montant =
+        montant;
+
+    }
+
+
+    currentEditDepenseId =
+      null;
+
+  }else{
+
+    pompisteState.depenses.push({
+
+      id:
+        uid(),
+
+      motif,
+
+      montant,
+
+      time
+
+    });
+
+  }
+
+
+  clearDepenseForm();
+
+  renderDepenses();
+
+  updateServiceSummary();
+
+  await persistPompiste();
+
+}
+
+
+// ============================================================
+// FORMULAIRE DÉPENSE
+// ============================================================
+
+function clearDepenseForm(){
+
+  const motif =
+    document.getElementById(
+      'depenseMotif'
+    );
+
+  const montant =
+    document.getElementById(
+      'depenseMontant'
+    );
+
+
+  if(motif){
+    motif.value = '';
+  }
+
+
+  if(montant){
+    montant.value = '';
+  }
+
+
+  const btn =
+    document.getElementById(
+      'addDepenseBtn'
+    );
+
+
+  if(btn){
+
+    btn.textContent =
+      '+ Ajouter la dépense';
+
+  }
+
+}
+
+
+// ============================================================
+// MODIFIER DÉPENSE
+// ============================================================
+
+function editDepense(id){
+
+  const dep =
+    pompisteState.depenses
+      .find(
+        d => d.id === id
+      );
+
+
+  if(!dep){
+    return;
+  }
+
+
+  currentEditDepenseId =
+    id;
+
+
+  const motif =
+    document.getElementById(
+      'depenseMotif'
+    );
+
+  const montant =
+    document.getElementById(
+      'depenseMontant'
+    );
+
+
+  if(motif){
+    motif.value =
+      dep.motif;
+  }
+
+
+  if(montant){
+    montant.value =
+      dep.montant;
+  }
+
+
+  const btn =
+    document.getElementById(
+      'addDepenseBtn'
+    );
+
+
+  if(btn){
+
+    btn.textContent =
+      '✓ Enregistrer la modification';
+
+  }
+
+}
+
+
+// ============================================================
+// SUPPRIMER DÉPENSE
+// ============================================================
+
+async function removeDepense(id){
+
+  if(
+    !confirm(
+      'Supprimer cette dépense ?'
+    )
+  ){
+
+    return;
+  }
+
+
+  pompisteState.depenses =
+    pompisteState.depenses
+      .filter(
+        d => d.id !== id
+      );
+
+
+  renderDepenses();
+
+  updateServiceSummary();
+
+  await persistPompiste();
+
+}
+
+
+// ============================================================
+// ALLER À LA CLÔTURE
+// ============================================================
+
+function goToClosing(){
+
+  showStage(
+    'cloture'
+  );
+
+}
+
+
+// ============================================================
+// SITUATION DU SERVICE
+// ============================================================
+
+function computeAndShowSituation(
+  readOnly = false
+){
+
+  const t =
+    shiftTotals(
+      pompisteState
+    );
+
+
+  const info =
+    document.getElementById(
+      'situationInfoBox'
+    );
+
+
+  if(info){
+
+    info.innerHTML = `
+
+      <div class="summary-line">
+        <span>Station</span>
+        <span class="v">
+          ${escapeHtml(
+            pompisteState.stationName ||
+            '—'
+          )}
+        </span>
+      </div>
+
+      <div class="summary-line">
+        <span>Pompiste</span>
+        <span class="v">
+          ${escapeHtml(
+            pompisteState.pompisteName ||
+            '—'
+          )}
+        </span>
+      </div>
+
+      <div class="summary-line">
+        <span>Poste / Îlot</span>
+        <span class="v">
+          ${escapeHtml(
+            pompisteState.posteNumber ||
+            '—'
+          )}
+          /
+          ${escapeHtml(
+            pompisteState.ilotNumber ||
+            '—'
+          )}
+        </span>
+      </div>
+
+    `;
+
+  }
+
+
+  const box =
+    document.getElementById(
+      'situationBox'
+    );
+
+
+  if(box){
+
+    const ok =
+      t.ecart >= 0;
+
+
+    box.innerHTML = `
+
+      <div class="situation-box ${ok ? 'ok' : 'bad'}">
+
+        <div class="tag">
+          ${t.ecart === 0
+            ? 'Caisse juste'
+            : t.ecart < 0
+              ? 'Manquant'
+              : 'Excédent'}
+        </div>
+
+        <div class="amount">
+          ${t.ecart > 0 ? '+' : ''}
+          ${fmt(t.ecart)} F
+        </div>
+
+        <div class="hint">
+          Reçu (${fmt(t.totalRecu)})
+          + Dépenses (${fmt(t.totalDepenses)})
+          − Vendu (${fmt(t.totalCA)})
+        </div>
+
+      </div>
+
+    `;
+
+  }
+
+
+  const fuelBox =
+    document.getElementById(
+      'situationFuels'
+    );
+
+
+  if(fuelBox){
+
+    fuelBox.innerHTML =
+      t.fuelSales
+        .map(f => `
+
+          <div class="summary-line">
+
+            <span>
+              ${escapeHtml(f.label)}
+              <span style="color:var(--muted)">
+                — ${f.qty.toFixed(1)} L
+              </span>
+            </span>
+
+            <span class="v">
+              ${fmt(f.montant)} F
+            </span>
+
+          </div>
+
+        `)
+        .join('') ||
+
+      '<div class="empty">Aucune donnée</div>';
+
+  }
+
+
+  const gazBox =
+    document.getElementById(
+      'situationGaz'
+    );
+
+
+  if(gazBox){
+
+    gazBox.innerHTML =
+      t.gazSales
+        .map(g => `
+
+          <div class="summary-line">
+
+            <span>
+
+              ${escapeHtml(g.label)}
+
+              <span style="color:var(--muted)">
+                —
+                ${g.recharges} rech.
+                /
+                ${g.consignes} cons.
+              </span>
+
+            </span>
+
+            <span class="v">
+              ${fmt(g.montant)} F
+            </span>
+
+          </div>
+
+        `)
+        .join('') ||
+
+      '<div class="empty">Aucune donnée</div>';
+
+  }
+
+
+  const payBox =
+    document.getElementById(
+      'situationPay'
+    );
+
+
+  if(payBox){
+
+    payBox.innerHTML =
+      VTYPES
+        .map(v => `
+
+          <div class="summary-line">
+
+            <span>
+              ${v.ic}
+              ${escapeHtml(v.label)}
+            </span>
+
+            <span class="v">
+              ${fmt(t.pay[v.key])} F
+            </span>
+
+          </div>
+
+        `)
+        .join('');
+
+  }
+
+
+  const versementsBox =
+    document.getElementById(
+      'situationVersementsList'
+    );
+
+
+  if(versementsBox){
+
+    versementsBox.innerHTML =
+      renderVersementsReadOnly(
+        pompisteState.versements
+      );
+
+  }
+
+
+  const depensesBox =
+    document.getElementById(
+      'situationDepenses'
+    );
+
+
+  if(depensesBox){
+
+    depensesBox.innerHTML =
+      (pompisteState.depenses || [])
+        .map(dep => `
+
+          <div class="summary-line">
+
+            <span>
+              ${escapeHtml(dep.motif)}
+            </span>
+
+            <span class="v">
+              -${fmt(dep.montant)} F
+            </span>
+
+          </div>
+
+        `)
+        .join('') ||
+
+      '<div class="empty">Aucune dépense</div>';
+
+  }
+
+
+  const finalBox =
+    document.getElementById(
+      'situationFinal'
+    );
+
+
+  if(finalBox){
+
+    finalBox.innerHTML = `
+
+      <div class="summary-line total">
+
+        <span>
+          Vendu théorique
+        </span>
+
+        <span class="v">
+          ${fmt(t.totalCA)} F
+        </span>
+
+      </div>
+
+      <div class="summary-line total">
+
+        <span>
+          Total reçu
+        </span>
+
+        <span class="v">
+          ${fmt(t.totalRecu)} F
+        </span>
+
+      </div>
+
+      <div class="summary-line total">
+
+        <span>
+          Total dépenses
+        </span>
+
+        <span class="v">
+          ${fmt(t.totalDepenses)} F
+        </span>
+
+      </div>
+
+    `;
+
+  }
+
+
+  const closeBtn =
+    document.getElementById(
+      'closeShiftBtn'
+    );
+
+
+  if(closeBtn){
+
+    closeBtn.classList.toggle(
+      'hidden',
+      readOnly
+    );
+
+  }
+
+
+  const sigPanel =
+    document.getElementById(
+      'signaturePanel'
+    );
+
+
+  if(sigPanel){
+
+    sigPanel.classList.remove(
+      'hidden'
+    );
+
+  }
+
+
+  const sigInput =
+    document.getElementById(
+      'signatureInput'
+    );
+
+
+  if(sigInput){
+
+    if(readOnly){
+
+      sigInput.style.display =
+        'none';
+
+    }else{
+
+      sigInput.style.display =
+        '';
+
+      sigInput.value =
+        pompisteState.signature ||
+        pompisteState.pompisteName ||
+        '';
+
+    }
+
+  }
+
+
+  window._lastSituation =
+    t;
+
+
+  showStage(
+    'situation'
+  );
+
+}
+
+
+// ============================================================
+// CLÔTURE DU SERVICE
+// ============================================================
+
+async function closePompisteShift(){
+
+  const sigInput =
+    document.getElementById(
+      'signatureInput'
+    );
+
+
+  const signature =
+    sigInput
+      ? sigInput.value.trim()
+      : '';
+
+
+  const msg =
+    document.getElementById(
+      'signatureMsg'
+    );
+
+
+  if(!signature){
+
+    if(msg){
+
+      msg.textContent =
+        'Veuillez taper votre nom pour signer avant de clôturer.';
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+    return;
+  }
+
+
+  pompisteState.signature =
+    signature;
+
+  pompisteState.status =
+    'closed';
+
+  pompisteState.closedAt =
+    new Date().toISOString();
+
+
+  const ok =
+    await persistPompiste();
+
+
+  if(ok){
+
+    if(msg){
+
+      msg.textContent =
+        '✓ Service clôturé et archivé.';
+
+      msg.style.color =
+        'var(--good)';
+    }
+
+
+    computeAndShowSituation(
+      true
+    );
+
+  }else{
+
+    if(msg){
+
+      msg.textContent =
+        "Échec de l'enregistrement. Vérifiez votre connexion.";
+
+      msg.style.color =
+        'var(--bad)';
+    }
+
+  }
+
+}
+
+
+// ============================================================
+// RETOUR AU SERVICE
+// ============================================================
+
+function backToService(){
+
+  if(
+    pompisteState.status ===
+    'open'
+  ){
+
+    renderPompisteService();
+
+    showStage(
+      'service'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// PARTAGE WHATSAPP
+// ============================================================
+
+function shareSituationWhatsApp(){
+
+  const t =
+    window._lastSituation;
+
+
+  if(!t){
+    return;
+  }
+
+
+  const dateStr =
+    new Date()
+      .toLocaleDateString(
+        'fr-FR',
+        {
+          weekday:'long',
+          day:'numeric',
+          month:'long',
+          year:'numeric'
+        }
+      );
+
+
+  let msg =
+    `*Situation service du ${dateStr}*\n`;
+
+
+  if(pompisteState.stationName){
+
+    msg +=
+      `Station : ${pompisteState.stationName}\n`;
+
+  }
+
+
+  if(pompisteState.pompisteName){
+
+    msg +=
+      `Pompiste : ${pompisteState.pompisteName}\n`;
+
+  }
+
+
+  msg += '\n';
+
+
+  msg +=
+    `Vendu théorique : ${fmt(t.totalCA)} F\n`;
+
+  msg +=
+    `Total reçu : ${fmt(t.totalRecu)} F\n`;
+
+  msg +=
+    `Dépenses : ${fmt(t.totalDepenses)} F\n`;
+
+  msg +=
+    `Écart : ${t.ecart > 0 ? '+' : ''}${fmt(t.ecart)} F\n`;
+
+
+  if(pompisteState.signature){
+
+    msg +=
+      `\n_Signé par ${pompisteState.signature}_`;
+
+  }
+
+
+  const url =
+    'https://wa.me/?text=' +
+    encodeURIComponent(msg);
+
+
+  window.open(
+    url,
+    '_blank'
+  );
+
+}
+
+
+// ============================================================
+// INITIALISATION AUTOMATIQUE
+// ============================================================
+
+document.addEventListener(
+  'DOMContentLoaded',
+  async function(){
+
+    try{
+
+      await checkSession();
+
+    }catch(e){
+
+      console.error(
+        'Initialisation :',
+        e
+      );
+
+    }
+
+  }
+);
+
+
+// ============================================================
+// ÉCOUTE DES CHANGEMENTS AUTH SUPABASE
+// ============================================================
+
+sb.auth.onAuthStateChange(
+  async (
+    event,
+    session
+  ) => {
+
+    if(
+      event === 'SIGNED_IN' &&
+      session?.user
+    ){
+
+      currentUser =
+        session.user;
+
+      await loadCurrentProfile();
+
+    }
+
+
+    if(
+      event === 'SIGNED_OUT'
+    ){
+
+      currentUser =
+        null;
+
+      showLogin();
+
+    }
+
+  }

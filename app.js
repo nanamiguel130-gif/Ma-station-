@@ -471,6 +471,7 @@ async function persistPompiste(){
     return true;
   }catch(e){
     console.error('Sauvegarde service :', e.message);
+    window._lastShiftError = e.message;
     return false;
   }
 }
@@ -612,7 +613,7 @@ async function openPompisteShift(){
     routePompisteStage();
   }else{
     pompisteState.status = 'none';
-    if(msg){ msg.textContent = "Échec de l'enregistrement. Vérifiez votre connexion."; msg.style.color = 'var(--bad)'; }
+    if(msg){ msg.textContent = "Échec de l'enregistrement : " + (window._lastShiftError || 'vérifiez votre connexion.'); msg.style.color = 'var(--bad)'; }
   }
 }
 
@@ -1005,7 +1006,7 @@ async function closePompisteShift(){
     if(msg){ msg.textContent = '✓ Service clôturé et archivé.'; msg.style.color = 'var(--good)'; }
     computeAndShowSituation(true);
   }else{
-    if(msg){ msg.textContent = "Échec de l'enregistrement. Vérifiez votre connexion."; msg.style.color = 'var(--bad)'; }
+    if(msg){ msg.textContent = "Échec de l'enregistrement : " + (window._lastShiftError || 'vérifiez votre connexion.'); msg.style.color = 'var(--bad)'; }
   }
 }
 

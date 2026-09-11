@@ -275,10 +275,6 @@ main{padding:18px 15px;}
           <input id="versementMontant" inputmode="decimal" placeholder="0">
         </div>
         <div class="field" style="margin-top:10px">
-          <label>Client</label>
-          <input id="versementClient" placeholder="Nom du client">
-        </div>
-        <div class="field" style="margin-top:10px">
           <label>Référence (facultatif)</label>
           <input id="versementReference" placeholder="Facultatif">
         </div>
@@ -290,6 +286,31 @@ main{padding:18px 15px;}
           <h3>Versements <span id="versementCount"></span></h3>
         </div>
         <div id="versementsList" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h3>🧾 Vente à crédit</h3>
+        <p style="color:var(--muted);font-size:12px">Pour un client identifié qui paiera plus tard — ne compte pas comme de l'argent en caisse.</p>
+        <div class="field">
+          <label>Nom du client</label>
+          <input id="creditClient" placeholder="Nom du client">
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label>Montant (FCFA)</label>
+          <input id="creditMontant" inputmode="decimal" placeholder="0">
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label>Note (facultatif)</label>
+          <input id="creditNote" placeholder="Facultatif">
+        </div>
+        <button id="addCreditBtn" class="btn amber big-action" onclick="addClientCredit()">+ Enregistrer la vente à crédit</button>
+      </div>
+
+      <div class="card">
+        <div class="section-title" style="margin:0 0 10px">
+          <h3>Ventes à crédit <span id="creditCount"></span></h3>
+        </div>
+        <div id="creditsList" class="list"></div>
       </div>
 
       <div class="card">
@@ -340,6 +361,7 @@ main{padding:18px 15px;}
       <div class="card"><h3>Moyens de paiement</h3><div id="situationPay"></div></div>
       <div class="card"><h3>Versements</h3><div id="situationVersementsList"></div></div>
       <div class="card"><h3>Dépenses</h3><div id="situationDepenses"></div></div>
+      <div class="card"><h3>Ventes à crédit</h3><div id="situationCredits"></div></div>
       <div class="card"><h3>Récapitulatif</h3><div id="situationFinal"></div></div>
       <div class="btnrow">
         <button class="btn secondary" onclick="backToService()">← Modifier</button>
@@ -378,180 +400,4 @@ main{padding:18px 15px;}
 
   <main>
     <section id="view-sup-station-setup" class="view">
-      <div class="section-title"><h3>🏢 Configuration</h3><span>Superviseur</span></div>
-      <div class="card">
-        <h3>Votre station</h3>
-        <p style="color:var(--muted);font-size:12px">Indiquez la station que vous supervisez.</p>
-        <div class="field">
-          <label>Nom de la station</label>
-          <input id="supStationInput" placeholder="Ex. Ma Station Bafia">
-        </div>
-        <button class="btn big-action" onclick="saveSupervisorStation()">✓ ENREGISTRER LA STATION</button>
-        <div id="supSetupMsg" class="success"></div>
-      </div>
-    </section>
-
-    <section id="view-sup-list" class="view active">
-      <div class="section-title"><h3>👥 Pompistes</h3><span>Aujourd'hui</span></div>
-      <div class="card"><div id="supPompisteList"><div class="empty">Chargement…</div></div></div>
-    </section>
-
-    <section id="view-sup-detail" class="view">
-      <button id="supDetailBackLink" class="back-link" onclick="showSupStage('list')">← Retour</button>
-      <div class="section-title"><h3>📊 Détail du service</h3><span>Supervision</span></div>
-      <div id="supDetailInfoBox" class="card"></div>
-      <div id="supDetailBox"></div>
-      <div class="card"><h3>⛽ Carburants</h3><div id="supDetailFuels"></div></div>
-      <div class="card"><h3>🔥 Gaz</h3><div id="supDetailGaz"></div></div>
-      <div class="card"><h3>💳 Moyens de paiement</h3><div id="supDetailPay"></div></div>
-      <div class="card"><h3>💰 Versements</h3><div id="supDetailVersementsList"></div></div>
-      <div class="card"><h3>🧾 Dépenses</h3><div id="supDetailDepenses"></div></div>
-      <div class="card"><h3>📌 Résultat final</h3><div id="supDetailFinal"></div></div>
-    </section>
-
-    <section id="view-sup-history" class="view">
-      <button class="back-link" onclick="showSupStage('list')">← Retour à la liste</button>
-      <div class="section-title"><h3 id="supHistoryTitle">Historique</h3><span>90 jours</span></div>
-      <div class="card"><div id="supHistoryList"></div></div>
-    </section>
-  </main>
-</div>
-
-
-<!-- ============================================================
-     ESPACE BOUTIQUE
-============================================================ -->
-<div id="boutiqueRoot" class="hidden">
-  <header class="bou-header">
-    <button class="icon-btn" onclick="logoutUser()">←</button>
-    <div class="title">
-      <h2>🛒 Boutique</h2>
-      <p id="bouStatusText">Boutique non ouverte</p>
-    </div>
-    <span id="bouStatusDot" class="status-dot none"></span>
-  </header>
-
-  <main>
-    <div class="tabs" style="position:static;transform:none;width:100%;margin-bottom:15px;border:1px solid var(--line);border-radius:15px;">
-      <button class="tab active" data-bou-tab="service" onclick="switchBouTab('service')">🛒<br>Service</button>
-      <button class="tab" data-bou-tab="catalogue" onclick="switchBouTab('catalogue')">📦<br>Catalogue</button>
-      <button class="tab" data-bou-tab="historique" onclick="switchBouTab('historique')">📅<br>Historique</button>
-    </div>
-
-    <section id="view-bou-ouverture" class="view">
-      <div class="section-title"><h3>🏪 Ouverture boutique</h3><span>Étape 1</span></div>
-      <div class="card">
-        <h3>Informations</h3>
-        <div class="field">
-          <label>Station</label>
-          <select id="bouInfoStation"><option value="">— Choisir une station —</option></select>
-        </div>
-        <div class="field" style="margin-top:10px">
-          <input id="bouInfoStationNew" class="hidden" placeholder="Nom de la nouvelle station">
-        </div>
-        <div class="field" style="margin-top:10px">
-          <label>Hôtesse / Responsable</label>
-          <input id="bouInfoHotesse" placeholder="Nom complet">
-        </div>
-        <div class="field" style="margin-top:10px">
-          <label>Fonds de caisse départ</label>
-          <input id="bouFondsCaisse" inputmode="decimal" placeholder="0">
-        </div>
-        <button class="btn big-action" onclick="openBoutiqueShift()">▶ OUVRIR LA BOUTIQUE</button>
-        <div id="bouOuvStatusMsg" class="success"></div>
-      </div>
-    </section>
-
-    <section id="view-bou-service" class="view">
-      <div class="section-title"><h3>🛒 Service boutique</h3><span id="bouOpCount"></span></div>
-      <div class="card"><h3>Type d'opération</h3><div id="bouOpGrid"></div></div>
-      <div class="card">
-        <h3>Nouvelle opération</h3>
-        <div id="bouOpFields"></div>
-        <div class="field" style="margin-top:10px">
-          <label>Note / référence</label>
-          <input id="bouOpNote" class="note-input" placeholder="Facultatif">
-        </div>
-        <button id="bouAddOpBtn" class="btn big-action" onclick="addBoutiqueOp()">+ Ajouter cette opération</button>
-        <button id="bouCancelOpEditBtn" class="btn secondary big-action hidden" onclick="cancelEditBouOp()">Annuler la modification</button>
-      </div>
-      <div class="card"><h3>📋 Opérations du jour</h3><div id="bouOpList"></div></div>
-      <button class="btn blue" onclick="goToBoutiqueClosing()">CONTINUER → CLÔTURE</button>
-    </section>
-
-    <section id="view-bou-catalogue" class="view">
-      <div class="section-title"><h3>📦 Catalogue produits</h3><span id="bouProdCount"></span></div>
-      <div class="card">
-        <h3>Ajouter un produit</h3>
-        <div class="field">
-          <label>Nom du produit</label>
-          <input id="bouProdName" placeholder="Ex. Eau minérale">
-        </div>
-        <div class="field" style="margin-top:10px">
-          <label>Prix unitaire (FCFA)</label>
-          <input id="bouProdPrice" inputmode="decimal" placeholder="500">
-        </div>
-        <button id="bouAddProdBtn" class="btn big-action" onclick="addBoutiqueProduct()">+ Ajouter au catalogue</button>
-        <button id="bouCancelProdEditBtn" class="btn secondary big-action hidden" onclick="cancelEditBoutiqueProduct()">Annuler la modification</button>
-      </div>
-      <div class="card"><div id="bouProdList"></div></div>
-    </section>
-
-    <section id="view-bou-cloture" class="view">
-      <div class="section-title"><h3>🔐 Clôture boutique</h3><span>Validation</span></div>
-      <div class="card">
-        <h3>Montant compté</h3>
-        <p style="color:var(--muted);font-size:12px">Comptez la caisse réelle puis indiquez le montant.</p>
-        <div class="field">
-          <label>Montant compté (FCFA)</label>
-          <input id="bouMontantCompte" inputmode="decimal" placeholder="0">
-        </div>
-        <button class="btn blue big-action" onclick="computeAndShowBoutiqueSituation(false)">📊 CALCULER LA SITUATION</button>
-      </div>
-    </section>
-
-    <section id="view-bou-situation" class="view">
-      <div class="section-title"><h3>📊 Situation boutique</h3><span>Clôture</span></div>
-      <div id="bouSituInfoBox" class="card"></div>
-      <div id="bouSituationBox"></div>
-      <div class="card"><h3>Retraits</h3><div id="bouSumRetraits"></div></div>
-      <div class="card"><h3>Dépôts</h3><div id="bouSumDepots"></div></div>
-      <div class="card"><h3>Ventes produits</h3><div id="bouSumVentes"></div></div>
-      <div class="card"><h3>Récapitulatif</h3><div id="bouSumFinal"></div></div>
-      <div id="bouSignaturePanel" class="card">
-        <h3>✍️ Signature</h3>
-        <p style="color:var(--muted);font-size:12px">Saisissez votre nom pour confirmer la clôture.</p>
-        <div class="field"><input id="bouSignatureInput" placeholder="Nom et prénom"></div>
-        <div id="bouSignatureMsg" class="success"></div>
-      </div>
-      <button id="bouCloseShiftBtn" class="btn big-action" onclick="closeBoutiqueShift()">✓ CLÔTURER LA BOUTIQUE</button>
-      <div class="btnrow">
-        <button id="bouBackToOpBtn" class="btn secondary big-action" onclick="backToOpFromBoutiqueSituation()">← Modifier</button>
-        <button class="btn big-action" onclick="shareBoutiqueWhatsApp()">WhatsApp</button>
-      </div>
-      <button id="bouBackToClotureBtn" class="btn secondary big-action" onclick="showBouStage('cloture')">← Retour à la clôture</button>
-      <div id="bouStatusMsg" class="success"></div>
-    </section>
-
-    <section id="view-bou-historique" class="view">
-      <div class="section-title"><h3>📅 Historique boutique</h3><span>90 jours</span></div>
-      <div class="card"><h3 id="bouMonthTitle">Récapitulatif</h3><div id="bouMonthRecap"></div></div>
-      <div class="card"><div id="bouHistList"></div></div>
-    </section>
-
-    <section id="view-bou-detail" class="view">
-      <button class="back-link" onclick="showBouStage('historique')">← Retour à l'historique</button>
-      <div class="section-title"><h3>📊 Détail de la journée</h3><span>Boutique</span></div>
-      <div id="bouDetailInfoBox" class="card"></div>
-      <div id="bouDetailBox"></div>
-      <div class="card"><h3>Retraits</h3><div id="bouDetailRetraits"></div></div>
-      <div class="card"><h3>Dépôts</h3><div id="bouDetailDepots"></div></div>
-      <div class="card"><h3>Ventes</h3><div id="bouDetailVentes"></div></div>
-      <div class="card"><h3>Récapitulatif</h3><div id="bouDetailFinal"></div></div>
-    </section>
-  </main>
-</div>
-
-<script src="app.js"></script>
-</body>
-</html>
+      <div class="section-title"><h3

@@ -822,6 +822,48 @@ async function loadCurrentProfile(){
     }
 
 async function routeAfterLogin(){
+
+  // ==========================================================
+  // PROPRIÉTAIRE
+  // ==========================================================
+  // Le propriétaire peut tester les différents espaces de
+  // l'application sans que son rôle réel soit modifié.
+  if(String(profileInfo.platform_role || '').toLowerCase() === 'owner'){
+
+    renderOwnerRoleSwitcher();
+
+    const role = String(ownerActiveRole || 'gerant').toLowerCase();
+
+    if(role === 'gerant' || role === 'gérant' || role === 'manager'){
+      if(typeof initGerant === 'function') await initGerant();
+      return;
+    }
+
+    if(role === 'superviseur' || role === 'supervisor' || role === 'chef_piste'){
+      if(typeof initSupervisor === 'function') await initSupervisor();
+      return;
+    }
+
+    if(role === 'boutique' || role === 'hotesse' || role === 'hôtesse' || role === 'chef_boutique'){
+      if(typeof initBoutique === 'function') await initBoutique();
+      return;
+    }
+
+    if(role === 'pompiste'){
+      await initPompiste();
+      return;
+    }
+
+    // Sécurité : si un rôle inconnu est sélectionné,
+    // retour au Gérant.
+    ownerActiveRole = 'gerant';
+    await initGerant();
+    return;
+  }
+
+  // ==========================================================
+  // UTILISATEURS NORMAUX
+  // ==========================================================
   const role = String(profileInfo.role || 'pompiste').toLowerCase();
 
   if(role === 'gerant' || role === 'gérant' || role === 'manager'){
@@ -841,7 +883,6 @@ async function routeAfterLogin(){
 
   await initPompiste();
 }
-
 // ============================================================
 // INITIALISATION POMPISTE
 // ============================================================

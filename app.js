@@ -14,7 +14,20 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 
-let profileInfo = { id:'', full_name:'', phone:'', email:'', station_name:'', role:'' };
+let profileInfo = {
+  id:'',
+  full_name:'',
+  phone:'',
+  email:'',
+  station_name:'',
+  role:'',
+  platform_role:''
+};
+
+// Rôle actuellement utilisé pour les tests du propriétaire.
+// Ce rôle est uniquement local/sessionnel et ne modifie jamais le rôle réel
+// enregistré dans Supabase.
+let ownerActiveRole = 'gerant';
 
 let stationOptions = [];
 

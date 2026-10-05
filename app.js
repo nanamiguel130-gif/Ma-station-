@@ -783,7 +783,12 @@ async function loadCurrentProfile(){
   if(!currentUser) return;
 
   try{
-    const { data, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+    const { data, error } = await sb
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .maybeSingle();
+
     if(error) throw error;
 
     profileInfo = {
@@ -792,14 +797,29 @@ async function loadCurrentProfile(){
       phone: data?.phone || '',
       email: data?.email || currentUser.email || '',
       station_name: data?.station_name || '',
-      role: data?.role || currentUser.user_metadata?.role || 'pompiste'
+      role: data?.role || currentUser.user_metadata?.role || 'pompiste',
+      platform_role: data?.platform_role || ''
     };
+
+    // Le propriétaire conserve toujours son identité propriétaire.
+    // Le rôle de test est séparé du rôle réel.
+    if(profileInfo.platform_role === 'owner'){
+      const savedRole = sessionStorage.getItem(
+        'maStationOwnerActiveRole_' + currentUser.id
+      );
+
+      ownerActiveRole = savedRole || 'gerant';
+    }
+
   }catch(e){
     console.warn('Profil indisponible :', e.message);
+
     profileInfo.id = currentUser.id;
     profileInfo.email = currentUser.email || '';
+    profileInfo.platform_role = '';
+
   }
-}
+    }
 
 async function routeAfterLogin(){
   const role = String(profileInfo.role || 'pompiste').toLowerCase();

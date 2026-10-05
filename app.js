@@ -821,6 +821,101 @@ async function loadCurrentProfile(){
   }
     }
 
+// ============================================================
+// MODE TEST PROPRIÉTAIRE
+// ============================================================
+
+function isOwnerAccount(){
+  return String(profileInfo?.platform_role || '').toLowerCase() === 'owner';
+}
+
+function renderOwnerRoleSwitcher(){
+
+  if(!isOwnerAccount()) return;
+
+  let box = document.getElementById('ownerRoleTester');
+
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'ownerRoleTester';
+
+    box.style.cssText = `
+      position:fixed;
+      top:12px;
+      right:12px;
+      z-index:99999;
+      background:#ffffff;
+      border:1px solid #d7dce2;
+      border-radius:12px;
+      padding:8px;
+      box-shadow:0 4px 18px rgba(0,0,0,.15);
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-family:Arial,sans-serif;
+    `;
+
+    box.innerHTML = `
+      <span style="
+        font-size:12px;
+        font-weight:700;
+        white-space:nowrap;
+      ">
+        TEST
+      </span>
+
+      <select id="ownerRoleSelect"
+        style="
+          border:1px solid #ccc;
+          border-radius:8px;
+          padding:7px 8px;
+          font-size:12px;
+          background:#fff;
+        ">
+        <option value="gerant">Gérant</option>
+        <option value="superviseur">Chef de piste / Superviseur</option>
+        <option value="boutique">Chef boutique / Hôtesse</option>
+        <option value="pompiste">Pompiste</option>
+      </select>
+
+      <button id="ownerRoleApply"
+        style="
+          border:0;
+          border-radius:8px;
+          padding:7px 9px;
+          font-size:12px;
+          font-weight:700;
+          cursor:pointer;
+        ">
+        Tester
+      </button>
+    `;
+
+    document.body.appendChild(box);
+
+    document.getElementById('ownerRoleApply').onclick = async () => {
+
+      const select = document.getElementById('ownerRoleSelect');
+      if(!select) return;
+
+      ownerActiveRole = select.value;
+
+      sessionStorage.setItem(
+        'maStationOwnerActiveRole_' + currentUser.id,
+        ownerActiveRole
+      );
+
+      await routeAfterLogin();
+    };
+  }
+
+  const select = document.getElementById('ownerRoleSelect');
+
+  if(select){
+    select.value = ownerActiveRole || 'gerant';
+  }
+}
+
 async function routeAfterLogin(){
 
   // ==========================================================
